@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent",
+  "type": "object",
+  "required": ["id", "name", "role", "skills", "status"],
+  "properties": {
+    "id": { "type": "string" },
+    "name": { "type": "string" },
+    "role": {
+      "type": "string",
+      "enum": ["context_steward", "executor", "reviewer"]
+    },
+    "skills": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["available", "busy", "offline"]
+    },
+    "current_task_id": {
+      "type": ["string", "null"]
+    }
+  }
+}

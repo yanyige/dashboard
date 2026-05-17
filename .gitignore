@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+data/local/
+data/workspace/
+data/demo/
+data/cli-smoke/
+data/stale-smoke/
+data/status-smoke/
+data/check-smoke/
+data/import-smoke/

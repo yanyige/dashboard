@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Delivery",
+  "type": "object",
+  "required": [
+    "id",
+    "project_id",
+    "task_id",
+    "agent_id",
+    "summary",
+    "files_changed",
+    "verification",
+    "followups",
+    "status"
+  ],
+  "properties": {
+    "id": { "type": "string" },
+    "project_id": { "type": "string" },
+    "task_id": { "type": "string" },
+    "agent_id": { "type": "string" },
+    "summary": { "type": "string" },
+    "files_changed": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "verification": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "followups": {
+      "type": "array"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["submitted", "accepted", "rejected"]
+    }
+  }
+}

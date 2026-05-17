@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Project",
+  "type": "object",
+  "required": ["id", "title", "goal", "status", "current_context_snapshot_id"],
+  "properties": {
+    "id": { "type": "string" },
+    "title": { "type": "string" },
+    "goal": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["active", "paused", "done", "archived"]
+    },
+    "health": {
+      "type": "string",
+      "enum": ["unknown", "on_track", "at_risk", "blocked", "paused", "done"]
+    },
+    "current_context_snapshot_id": { "type": "string" },
+    "current_status_update_id": {
+      "type": ["string", "null"]
+    },
+    "github": {
+      "type": ["object", "null"]
+    },
+    "created_by": { "type": "string" }
+  }
+}

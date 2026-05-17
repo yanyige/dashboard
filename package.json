@@ -1,0 +1,24 @@
+{
+  "name": "codex-control-center",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A file-backed control center for project-scoped Codex Agent task orchestration.",
+  "bin": {
+    "ccc": "scripts/ccc.mjs"
+  },
+  "scripts": {
+    "ccc": "node scripts/ccc.mjs",
+    "demo": "node scripts/run-core-flow.mjs",
+    "check": "node scripts/run-core-flow.mjs --check && node scripts/run-cli-smoke.mjs && node scripts/run-stale-context-smoke.mjs && node scripts/run-project-status-smoke.mjs && node scripts/run-project-check-smoke.mjs && node scripts/run-import-smoke.mjs",
+    "check:core": "node scripts/run-core-flow.mjs --check",
+    "check:cli": "node scripts/run-cli-smoke.mjs",
+    "check:stale": "node scripts/run-stale-context-smoke.mjs",
+    "check:status": "node scripts/run-project-status-smoke.mjs",
+    "check:projects": "node scripts/run-project-check-smoke.mjs",
+    "check:import": "node scripts/run-import-smoke.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProjectContextSnapshot",
+  "type": "object",
+  "required": [
+    "id",
+    "project_id",
+    "version",
+    "tech_stack",
+    "constraints",
+    "roadmap",
+    "decisions",
+    "completed_tasks",
+    "change_log"
+  ],
+  "properties": {
+    "id": { "type": "string" },
+    "project_id": { "type": "string" },
+    "version": { "type": "number" },
+    "summary": { "type": "string" },
+    "repo_path": {
+      "type": ["string", "null"]
+    },
+    "repository": {
+      "type": ["object", "null"]
+    },
+    "tech_stack": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "roadmap": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "decisions": {
+      "type": "array"
+    },
+    "completed_tasks": {
+      "type": "array"
+    },
+    "change_log": {
+      "type": "array"
+    }
+  }
+}

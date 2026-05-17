@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProjectCheck",
+  "type": "object",
+  "required": [
+    "id",
+    "updated_by",
+    "project_count",
+    "results",
+    "created_at"
+  ],
+  "properties": {
+    "id": { "type": "string" },
+    "updated_by": { "type": "string" },
+    "note": { "type": "string" },
+    "project_count": { "type": "number" },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "project_id",
+          "project_title",
+          "health",
+          "status_update_id",
+          "context_snapshot_id",
+          "summary"
+        ],
+        "properties": {
+          "project_id": { "type": "string" },
+          "project_title": { "type": "string" },
+          "health": {
+            "type": "string",
+            "enum": ["on_track", "at_risk", "blocked", "paused", "done"]
+          },
+          "status_update_id": { "type": "string" },
+          "context_snapshot_id": { "type": "string" },
+          "summary": { "type": "string" }
+        }
+      }
+    },
+    "created_at": { "type": "string" }
+  }
+}

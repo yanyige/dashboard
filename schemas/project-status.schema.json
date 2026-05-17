@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProjectStatusUpdate",
+  "type": "object",
+  "required": [
+    "id",
+    "project_id",
+    "health",
+    "summary",
+    "updated_by",
+    "context_snapshot_id",
+    "task_counts",
+    "context_counts",
+    "progress",
+    "risks",
+    "blockers",
+    "next_actions"
+  ],
+  "properties": {
+    "id": { "type": "string" },
+    "project_id": { "type": "string" },
+    "health": {
+      "type": "string",
+      "enum": ["on_track", "at_risk", "blocked", "paused", "done"]
+    },
+    "summary": { "type": "string" },
+    "updated_by": { "type": "string" },
+    "source": { "type": "string" },
+    "check_run_id": { "type": "string" },
+    "context_snapshot_id": { "type": "string" },
+    "task_counts": { "type": "object" },
+    "context_counts": { "type": "object" },
+    "progress": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "risks": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "blockers": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "next_actions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}
