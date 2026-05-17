@@ -17,6 +17,7 @@ Commands:
   import-project     Import a project directly from a GitHub repository URL
   list-projects      List projects
   show-project       Show one project
+  archive-project    Archive a project and remove it from active work routing
   update-project-status
                     Write a Context Steward project status snapshot
   show-project-dashboard
@@ -58,6 +59,7 @@ const handlers = {
   "import-project": handleImportProject,
   "list-projects": handleListProjects,
   "show-project": handleShowProject,
+  "archive-project": handleArchiveProject,
   "update-project-status": handleUpdateProjectStatus,
   "show-project-dashboard": handleShowProjectDashboard,
   "list-project-status": handleListProjectStatus,
@@ -174,6 +176,14 @@ function handleShowProject(center, flags) {
   const project = center.getProject(projectId);
   const context = center.getContext(projectId, project.current_context_snapshot_id);
   return { project, context };
+}
+
+function handleArchiveProject(center, flags) {
+  return center.archiveProject({
+    project_id: projectFlag(flags),
+    archived_by: stringFlag(flags, "archived-by") ?? "codex-thread",
+    reason: stringFlag(flags, "reason") ?? ""
+  });
 }
 
 function handleUpdateProjectStatus(center, flags) {
@@ -398,6 +408,11 @@ function printResult(command, result, flags) {
       break;
     case "show-project":
       console.log(JSON.stringify(result, null, 2));
+      break;
+    case "archive-project":
+      console.log(
+        `archived project ${result.project.id}; health=${result.project.health}`
+      );
       break;
     case "update-project-status":
       console.log(

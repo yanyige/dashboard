@@ -123,7 +123,7 @@ export class ControlCenter {
 
   publishTask(task) {
     requireFields(task, ["project_id", "title", "objective", "created_by"]);
-    this.getProject(task.project_id);
+    this.assertProjectAcceptsWork(task.project_id, "publish tasks");
 
     const taskId = this.nextId(this.tasksDir(task.project_id), "task");
     const taskRecord = {
@@ -166,6 +166,7 @@ export class ControlCenter {
     }
 
     const project = this.getProject(input.project_id);
+    this.assertProjectAcceptsWork(project.id, "prepare tasks");
     const context = this.getContext(input.project_id, project.current_context_snapshot_id);
     const task = this.getTask(input.project_id, input.task_id);
 
@@ -232,6 +233,7 @@ export class ControlCenter {
     const agent = this.getAgent(input.agent_id);
     const task = this.getTask(input.project_id, input.task_id);
 
+    this.assertProjectAcceptsWork(input.project_id, "claim tasks");
     this.assertAgentCanAcceptTask(agent);
     this.assertTaskCanBeClaimed(input.project_id, task, agent);
 
@@ -261,6 +263,7 @@ export class ControlCenter {
   claimNextTask(input) {
     requireFields(input, ["project_id", "agent_id"]);
 
+    this.assertProjectAcceptsWork(input.project_id, "claim tasks");
     this.assertAgentCanAcceptTask(this.getAgent(input.agent_id));
     const claimableTasks = this.listClaimableTasks(input.project_id, {
       agent_id: input.agent_id
@@ -280,6 +283,7 @@ export class ControlCenter {
   startTask(input) {
     requireFields(input, ["project_id", "task_id", "agent_id"]);
 
+    this.assertProjectAcceptsWork(input.project_id, "start tasks");
     const task = this.getTask(input.project_id, input.task_id);
     if (task.status !== "claimed" || task.assigned_agent_id !== input.agent_id) {
       throw new Error(`Task is not claimed by agent: ${input.task_id}`);
@@ -526,6 +530,49 @@ export class ControlCenter {
     return { project: updatedProject, status_update: statusUpdate };
   }
 
+  archiveProject(input) {
+    requireFields(input, ["project_id", "archived_by"]);
+
+    const project = this.getProject(input.project_id);
+    if (project.status === "archived") {
+      return {
+        project,
+        status_update: this.getLatestProjectStatus(input.project_id)
+      };
+    }
+
+    const archivedProject = {
+      ...project,
+      status: "archived",
+      health: "done",
+      archived_by: input.archived_by,
+      archived_at: now(),
+      archive_reason: input.reason ?? "",
+      updated_at: now()
+    };
+
+    this.writeRecord("project", this.projectPath(input.project_id), archivedProject);
+    this.appendEvent("project.archived", {
+      project_id: input.project_id,
+      archived_by: input.archived_by,
+      reason: input.reason ?? ""
+    });
+
+    return this.updateProjectStatus({
+      project_id: input.project_id,
+      health: "done",
+      summary: input.reason
+        ? `Project is archived: ${input.reason}`
+        : "Project is archived.",
+      updated_by: input.archived_by,
+      source: "archive_project",
+      progress: ["Project lifecycle changed to archived."],
+      risks: [],
+      blockers: [],
+      next_actions: []
+    });
+  }
+
   checkProjects(input = {}) {
     const updatedBy = input.updated_by ?? "codex-thread";
     const checkId = this.nextId(this.projectChecksDir(), "check");
@@ -578,6 +625,20 @@ export class ControlCenter {
     const risks = [];
     const blockers = [];
     const nextActions = [];
+
+    if (project.status === "archived") {
+      return {
+        health: "done",
+        summary: "Project is archived.",
+        progress: [
+          `Project lifecycle is archived.`,
+          `Task hall is retained with ${taskSummary.total} historical task(s).`
+        ],
+        risks: [],
+        blockers: [],
+        next_actions: []
+      };
+    }
 
     progress.push(`Current context is ${dashboard.current_context.id}.`);
     progress.push(`Task hall contains ${taskSummary.total} task(s).`);
@@ -764,6 +825,11 @@ export class ControlCenter {
   }
 
   listClaimableTasks(projectId, options = {}) {
+    const project = this.getProject(projectId);
+    if (project.status === "archived") {
+      return [];
+    }
+
     const agent = options.agent_id ? this.getAgent(options.agent_id) : null;
 
     return this.listTasks(projectId)
@@ -957,6 +1023,13 @@ export class ControlCenter {
       throw new Error(
         `Agent ${agent.id} has no free task capacity: ${capacity.active}/${capacity.max}`
       );
+    }
+  }
+
+  assertProjectAcceptsWork(projectId, action) {
+    const project = this.getProject(projectId);
+    if (project.status === "archived") {
+      throw new Error(`Archived project cannot ${action}: ${projectId}`);
     }
   }
 

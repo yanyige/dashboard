@@ -72,6 +72,17 @@ npm run ccc -- show-project-dashboard --project my-project
 
 The dashboard includes project health, latest status update, current context snapshot, task counts by state, context freshness counts, and the task hall.
 
+Archive duplicate or retired project records when they should remain visible but stop producing active work:
+
+```bash
+npm run ccc -- archive-project \
+  --project old-project \
+  --archived-by codex-thread \
+  --reason "Merged into dashboard."
+```
+
+Archived projects remain in project lists and dashboards, but scheduled checks report them as `done` and active task routing rejects new publish/prepare/claim/start operations.
+
 Use `check-projects` for the periodic Context Steward pass. It checks every project, writes one status snapshot per project, and records the full check run under `checks/`.
 
 ```bash

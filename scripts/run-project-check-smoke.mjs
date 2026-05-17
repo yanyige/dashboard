@@ -31,6 +31,54 @@ run([
 run([
   "create-project",
   "--id",
+  "archived-project",
+  "--title",
+  "Archived Project",
+  "--goal",
+  "Verify archived projects stay visible without active-work risk."
+]);
+
+jsonRun([
+  "publish-task",
+  "--project",
+  "archived-project",
+  "--title",
+  "Historical draft",
+  "--objective",
+  "Remain visible after project archival.",
+  "--json"
+]);
+
+const archived = jsonRun([
+  "archive-project",
+  "--project",
+  "archived-project",
+  "--archived-by",
+  "steward",
+  "--reason",
+  "Duplicate project record.",
+  "--json"
+]);
+assert.equal(archived.project.status, "archived");
+assert.equal(archived.project.health, "done");
+
+assert.throws(
+  () =>
+    run([
+      "publish-task",
+      "--project",
+      "archived-project",
+      "--title",
+      "Should not publish",
+      "--objective",
+      "Archived projects should reject active work."
+    ]),
+  /Archived project cannot publish tasks/
+);
+
+run([
+  "create-project",
+  "--id",
   "ready-project",
   "--title",
   "Ready Project",
@@ -76,8 +124,8 @@ const check = jsonRun([
 ]);
 
 assert.equal(check.check.id, "check-0001");
-assert.equal(check.check.project_count, 2);
-assert.equal(check.results.length, 2);
+assert.equal(check.check.project_count, 3);
+assert.equal(check.results.length, 3);
 
 const emptyResult = check.results.find(
   (result) => result.project_id === "empty-project"
@@ -85,9 +133,14 @@ const emptyResult = check.results.find(
 const readyResult = check.results.find(
   (result) => result.project_id === "ready-project"
 );
+const archivedResult = check.results.find(
+  (result) => result.project_id === "archived-project"
+);
 
 assert.equal(emptyResult.health, "at_risk");
 assert.equal(readyResult.health, "on_track");
+assert.equal(archivedResult.health, "done");
+assert.match(archivedResult.summary, /archived/i);
 
 const checks = jsonRun(["list-project-checks", "--json"]);
 assert.equal(checks.checks.length, 1);
@@ -99,7 +152,7 @@ const shown = jsonRun([
   "check-0001",
   "--json"
 ]);
-assert.equal(shown.check.results.length, 2);
+assert.equal(shown.check.results.length, 3);
 
 const emptyDashboard = jsonRun([
   "show-project-dashboard",
@@ -119,7 +172,8 @@ function run(args) {
     ...args
   ], {
     cwd: resolve("."),
-    encoding: "utf8"
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"]
   });
 }
 
