@@ -9,16 +9,18 @@
   },
   "scripts": {
     "ccc": "node scripts/ccc.mjs",
+    "web": "node scripts/dashboard-server.mjs",
     "demo": "node scripts/run-core-flow.mjs",
-    "check": "node scripts/run-core-flow.mjs --check && node scripts/run-cli-smoke.mjs && node scripts/run-stale-context-smoke.mjs && node scripts/run-project-status-smoke.mjs && node scripts/run-project-check-smoke.mjs && node scripts/run-import-smoke.mjs",
+    "check": "node scripts/run-core-flow.mjs --check && node scripts/run-cli-smoke.mjs && node scripts/run-stale-context-smoke.mjs && node scripts/run-project-status-smoke.mjs && node scripts/run-project-check-smoke.mjs && node scripts/run-import-smoke.mjs && node scripts/run-web-smoke.mjs",
     "check:core": "node scripts/run-core-flow.mjs --check",
     "check:cli": "node scripts/run-cli-smoke.mjs",
     "check:stale": "node scripts/run-stale-context-smoke.mjs",
     "check:status": "node scripts/run-project-status-smoke.mjs",
     "check:projects": "node scripts/run-project-check-smoke.mjs",
-    "check:import": "node scripts/run-import-smoke.mjs"
+    "check:import": "node scripts/run-import-smoke.mjs",
+    "check:web": "node scripts/run-web-smoke.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=16.20.2"
   }
 }

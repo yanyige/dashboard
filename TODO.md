@@ -20,5 +20,6 @@
 - [x] Add thread-owned project status update and dashboard interfaces.
 - [x] Add all-project scheduled check records.
 - [x] Add GitHub URL project import.
+- [x] Add web dashboard service.
 - [ ] Add a reviewer role separate from the context steward.
 - [ ] Add a persistent audit log format suitable for Git diffs.

@@ -240,6 +240,52 @@ Run GitHub import checks:
 npm run check:import
 ```
 
+## Web Dashboard
+
+Run the web dashboard locally:
+
+```bash
+PORT=3000 CCC_ROOT=data/workspace npm run web
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+The web dashboard exposes:
+
+- project health and lifecycle state
+- latest project status snapshot
+- latest scheduled check
+- task hall table
+- recent check history
+- a manual `Run Check` action
+
+API endpoints:
+
+```text
+GET  /api/health
+GET  /api/dashboard
+GET  /api/projects/:projectId
+GET  /api/checks
+GET  /api/checks/:checkId
+POST /api/checks/run
+```
+
+On the server deployment, the stable entrypoint is:
+
+```bash
+dashboard-ccc show-project-dashboard --project codex-control-center
+```
+
+The web service is intended to run with:
+
+```bash
+HOST=0.0.0.0 PORT=3000 CCC_ROOT=/opt/dashboard/data/workspace node /opt/dashboard/scripts/dashboard-server.mjs
+```
+
 ## Roles
 
 ### Context Steward

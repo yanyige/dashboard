@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Codex Control Center</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Projects">
+        <div class="brand-block">
+          <div class="brand-mark">CC</div>
+          <div>
+            <h1>Codex Control Center</h1>
+            <p id="generatedAt">Loading status...</p>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <button id="refreshButton" class="icon-button" type="button" title="Refresh dashboard" aria-label="Refresh dashboard">
+            <span aria-hidden="true">R</span>
+          </button>
+          <button id="runCheckButton" class="primary-button" type="button">
+            <span aria-hidden="true">Run</span>
+            <span>Check</span>
+          </button>
+        </div>
+
+        <div class="project-list" id="projectList"></div>
+      </aside>
+
+      <main class="main-panel">
+        <section class="overview-band">
+          <div>
+            <p class="eyebrow">Project Dashboard</p>
+            <h2 id="projectTitle">No project selected</h2>
+            <p id="projectGoal" class="summary-text">Create or import a project to start tracking status.</p>
+          </div>
+          <div id="healthBadge" class="health-badge health-unknown">unknown</div>
+        </section>
+
+        <section class="metrics-grid" aria-label="Project metrics">
+          <div class="metric">
+            <span class="metric-label">Tasks</span>
+            <strong id="metricTasks">0</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Ready</span>
+            <strong id="metricReady">0</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Draft</span>
+            <strong id="metricDraft">0</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Stale</span>
+            <strong id="metricStale">0</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Blocked</span>
+            <strong id="metricBlocked">0</strong>
+          </div>
+        </section>
+
+        <section class="status-layout">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Latest Status</h3>
+              <span id="latestStatusMeta" class="muted">No status yet</span>
+            </div>
+            <p id="latestStatusSummary" class="status-summary">No project status snapshot has been written.</p>
+            <div class="split-list">
+              <div>
+                <h4>Risks</h4>
+                <ul id="riskList" class="plain-list"></ul>
+              </div>
+              <div>
+                <h4>Next Actions</h4>
+                <ul id="nextActionList" class="plain-list"></ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Latest Check</h3>
+              <span id="latestCheckMeta" class="muted">No check yet</span>
+            </div>
+            <div id="checkResults" class="check-results"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h3>Task Hall</h3>
+            <span id="taskCountLabel" class="muted">0 tasks</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Title</th>
+                  <th>Status</th>
+                  <th>Context</th>
+                  <th>Priority</th>
+                  <th>Agent</th>
+                </tr>
+              </thead>
+              <tbody id="taskRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h3>Recent Check Runs</h3>
+            <span class="muted">Last 20</span>
+          </div>
+          <div id="checkHistory" class="check-history"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
