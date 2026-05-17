@@ -53,7 +53,8 @@ try {
   assert.equal(manualCheck.results.length, 1);
 
   const html = await getText(`${baseUrl}/`);
-  assert.match(html, /Codex Control Center/);
+  assert.match(html, /Codex 控制中心/);
+  assert.match(html, /项目看板/);
 
   console.log("web smoke passed");
 } finally {

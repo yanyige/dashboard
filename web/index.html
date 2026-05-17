@@ -1,29 +1,29 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Codex Control Center</title>
+    <title>Codex 控制中心</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
     <div class="app-shell">
-      <aside class="sidebar" aria-label="Projects">
+      <aside class="sidebar" aria-label="项目列表">
         <div class="brand-block">
           <div class="brand-mark">CC</div>
           <div>
-            <h1>Codex Control Center</h1>
-            <p id="generatedAt">Loading status...</p>
+            <h1>Codex 控制中心</h1>
+            <p id="generatedAt">正在加载状态...</p>
           </div>
         </div>
 
         <div class="toolbar">
-          <button id="refreshButton" class="icon-button" type="button" title="Refresh dashboard" aria-label="Refresh dashboard">
-            <span aria-hidden="true">R</span>
+          <button id="refreshButton" class="icon-button" type="button" title="刷新看板" aria-label="刷新看板">
+            <span aria-hidden="true">刷</span>
           </button>
           <button id="runCheckButton" class="primary-button" type="button">
-            <span aria-hidden="true">Run</span>
-            <span>Check</span>
+            <span aria-hidden="true">运行</span>
+            <span>检查</span>
           </button>
         </div>
 
@@ -33,32 +33,32 @@
       <main class="main-panel">
         <section class="overview-band">
           <div>
-            <p class="eyebrow">Project Dashboard</p>
-            <h2 id="projectTitle">No project selected</h2>
-            <p id="projectGoal" class="summary-text">Create or import a project to start tracking status.</p>
+            <p class="eyebrow">项目看板</p>
+            <h2 id="projectTitle">未选择项目</h2>
+            <p id="projectGoal" class="summary-text">创建或导入项目后开始跟踪状态。</p>
           </div>
-          <div id="healthBadge" class="health-badge health-unknown">unknown</div>
+          <div id="healthBadge" class="health-badge health-unknown">未知</div>
         </section>
 
-        <section class="metrics-grid" aria-label="Project metrics">
+        <section class="metrics-grid" aria-label="项目指标">
           <div class="metric">
-            <span class="metric-label">Tasks</span>
+            <span class="metric-label">任务总数</span>
             <strong id="metricTasks">0</strong>
           </div>
           <div class="metric">
-            <span class="metric-label">Claimable</span>
+            <span class="metric-label">可领取</span>
             <strong id="metricReady">0</strong>
           </div>
           <div class="metric">
-            <span class="metric-label">Draft</span>
+            <span class="metric-label">待审核</span>
             <strong id="metricDraft">0</strong>
           </div>
           <div class="metric">
-            <span class="metric-label">Stale</span>
+            <span class="metric-label">需更新上下文</span>
             <strong id="metricStale">0</strong>
           </div>
           <div class="metric">
-            <span class="metric-label">Blocked</span>
+            <span class="metric-label">阻塞</span>
             <strong id="metricBlocked">0</strong>
           </div>
         </section>
@@ -66,17 +66,17 @@
         <section class="status-layout">
           <div class="panel">
             <div class="panel-header">
-              <h3>Latest Status</h3>
-              <span id="latestStatusMeta" class="muted">No status yet</span>
+              <h3>最新状态</h3>
+              <span id="latestStatusMeta" class="muted">暂无状态</span>
             </div>
-            <p id="latestStatusSummary" class="status-summary">No project status snapshot has been written.</p>
+            <p id="latestStatusSummary" class="status-summary">还没有写入项目状态快照。</p>
             <div class="split-list">
               <div>
-                <h4>Risks</h4>
+                <h4>风险</h4>
                 <ul id="riskList" class="plain-list"></ul>
               </div>
               <div>
-                <h4>Next Actions</h4>
+                <h4>下一步</h4>
                 <ul id="nextActionList" class="plain-list"></ul>
               </div>
             </div>
@@ -84,8 +84,8 @@
 
           <div class="panel">
             <div class="panel-header">
-              <h3>Latest Check</h3>
-              <span id="latestCheckMeta" class="muted">No check yet</span>
+              <h3>最新检查</h3>
+              <span id="latestCheckMeta" class="muted">暂无检查</span>
             </div>
             <div id="checkResults" class="check-results"></div>
           </div>
@@ -93,20 +93,20 @@
 
         <section class="panel">
           <div class="panel-header">
-            <h3>Task Hall</h3>
-            <span id="taskCountLabel" class="muted">0 tasks</span>
+            <h3>任务大厅</h3>
+            <span id="taskCountLabel" class="muted">0 个任务</span>
           </div>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>Title</th>
-                  <th>Status</th>
-                  <th>Context</th>
-                  <th>Priority</th>
-                  <th>Claimable</th>
-                  <th>Dependencies</th>
+                  <th>标题</th>
+                  <th>状态</th>
+                  <th>上下文</th>
+                  <th>优先级</th>
+                  <th>可领取</th>
+                  <th>依赖</th>
                   <th>Agent</th>
                 </tr>
               </thead>
@@ -117,8 +117,8 @@
 
         <section class="panel">
           <div class="panel-header">
-            <h3>Recent Check Runs</h3>
-            <span class="muted">Last 20</span>
+            <h3>最近检查记录</h3>
+            <span class="muted">最近 20 条</span>
           </div>
           <div id="checkHistory" class="check-history"></div>
         </section>
