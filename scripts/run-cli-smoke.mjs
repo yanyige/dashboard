@@ -82,12 +82,23 @@ const preparedTask = jsonRun([
 ]);
 assert.equal(preparedTask.task.status, "ready");
 
-const claimedTask = jsonRun([
-  "claim-task",
+const claimableTasks = jsonRun([
+  "list-claimable-tasks",
   "--project",
   "cli-demo",
-  "--task",
-  publishedTask.task.id,
+  "--agent",
+  "builder",
+  "--json"
+]);
+assert.deepEqual(
+  claimableTasks.tasks.map((task) => task.id),
+  [publishedTask.task.id]
+);
+
+const claimedTask = jsonRun([
+  "claim-next-task",
+  "--project",
+  "cli-demo",
   "--agent",
   "builder",
   "--json"

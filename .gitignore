@@ -5,6 +5,7 @@ data/workspace/
 data/demo/
 data/cli-smoke/
 data/stale-smoke/
+data/concurrency-smoke/
 data/status-smoke/
 data/check-smoke/
 data/import-smoke/

@@ -16,8 +16,8 @@ Human publishes task
   -> task is draft with missing context
 Context Steward prepares task
   -> task is ready and points to a project context snapshot
-Executor claims task
-  -> task is claimed, Agent is busy
+Executor claims a claimable task from the project task pool
+  -> task is claimed, Agent is busy; other Agents can claim other claimable tasks
 Executor starts and delivers task
   -> task is in review with a delivery record
 Context Steward accepts delivery
@@ -35,6 +35,8 @@ task.context_snapshot_id -> project.contexts/context-0001.json
 When a delivery is accepted, the project creates a new context snapshot. This makes context changes explicit and lets future tasks decide whether their prepared context is current or stale.
 
 If a `ready` task was prepared against an older snapshot, accepting another delivery marks it as `context_status=stale`. A stale task must be prepared again before an Agent can claim it.
+
+Tasks can declare `dependencies` as task IDs from the same project. A task can be `ready` but not claimable until all dependencies are `done`. Already started concurrent tasks may still deliver against the context snapshot they started from; the Context Steward reconciles that delivery when accepting it into the latest project context.
 
 Known records are validated before they are written: Agent registry, project, context snapshot, task, and delivery. The runtime checks the same practical constraints described by `schemas/`, including required fields, enums, array fields, and task state invariants.
 
@@ -178,10 +180,13 @@ npm run ccc -- prepare-task \
   --skills markdown,workflow
 ```
 
+Add `--depends-on task-0001` when a task must wait for another task in the same project.
+
 Execute and accept:
 
 ```bash
-npm run ccc -- claim-task --project my-project --task task-0001 --agent builder
+npm run ccc -- list-claimable-tasks --project my-project --agent builder
+npm run ccc -- claim-next-task --project my-project --agent builder
 npm run ccc -- start-task --project my-project --task task-0001 --agent builder
 npm run ccc -- deliver-task \
   --project my-project \
@@ -204,6 +209,7 @@ Useful queries:
 npm run ccc -- list-agents
 npm run ccc -- list-projects
 npm run ccc -- list-tasks --project my-project
+npm run ccc -- list-claimable-tasks --project my-project
 npm run ccc -- show-task --project my-project --task task-0001
 npm run ccc -- show-project-dashboard --project my-project
 npm run ccc -- list-project-status --project my-project

@@ -21,5 +21,6 @@
 - [x] Add all-project scheduled check records.
 - [x] Add GitHub URL project import.
 - [x] Add web dashboard service.
+- [x] Add concurrent project task claiming with dependencies.
 - [ ] Add a reviewer role separate from the context steward.
 - [ ] Add a persistent audit log format suitable for Git diffs.

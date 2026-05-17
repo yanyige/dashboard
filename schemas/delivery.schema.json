@@ -18,6 +18,7 @@
     "project_id": { "type": "string" },
     "task_id": { "type": "string" },
     "agent_id": { "type": "string" },
+    "context_snapshot_id": { "type": ["string", "null"] },
     "summary": { "type": "string" },
     "files_changed": {
       "type": "array",

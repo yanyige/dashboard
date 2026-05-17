@@ -59,6 +59,8 @@ function validateAgent(value, errors) {
   enumValue(value, "status", AGENT_STATUSES, errors);
   arrayOfStrings(value, "skills", errors);
   optionalStringOrNull(value, "current_task_id", errors);
+  optionalArrayOfStrings(value, "active_task_ids", errors);
+  optionalPositiveInteger(value, "max_parallel_tasks", errors);
 }
 
 function validateAgentRegistry(value, errors) {
@@ -116,6 +118,8 @@ function validateTask(value, errors) {
   enumValue(value, "context_status", CONTEXT_STATUSES, errors);
   optionalStringOrNull(value, "context_snapshot_id", errors);
   arrayOfStrings(value, "required_skills", errors);
+  optionalArrayOfStrings(value, "dependencies", errors);
+  optionalString(value, "parallel_group", errors);
   optionalStringOrNull(value, "assigned_agent_id", errors);
   arrayOfStrings(value, "acceptance_criteria", errors);
   arrayOfStrings(value, "deliverables", errors);
@@ -142,6 +146,7 @@ function validateDelivery(value, errors) {
   requiredString(value, "project_id", errors);
   requiredString(value, "task_id", errors);
   requiredString(value, "agent_id", errors);
+  optionalStringOrNull(value, "context_snapshot_id", errors);
   requiredString(value, "summary", errors);
   arrayOfStrings(value, "files_changed", errors);
   arrayOfStrings(value, "verification", errors);
@@ -218,6 +223,14 @@ function arrayOfStrings(value, field, errors) {
   }
 }
 
+function optionalArrayOfStrings(value, field, errors) {
+  if (value?.[field] === undefined) {
+    return;
+  }
+
+  arrayOfStrings(value, field, errors);
+}
+
 function objectValue(value, field, errors) {
   if (
     value?.[field] === null ||
@@ -231,5 +244,15 @@ function objectValue(value, field, errors) {
 function numberValue(value, field, errors) {
   if (typeof value?.[field] !== "number" || Number.isNaN(value[field])) {
     errors.push(`${field} must be a number`);
+  }
+}
+
+function optionalPositiveInteger(value, field, errors) {
+  if (value?.[field] === undefined) {
+    return;
+  }
+
+  if (!Number.isInteger(value[field]) || value[field] < 1) {
+    errors.push(`${field} must be a positive integer when present`);
   }
 }

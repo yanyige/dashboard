@@ -124,7 +124,7 @@ assert.throws(
       task_id: taskB.id,
       agent_id: "builder"
     }),
-  /Task must be ready before claim/
+  /not claimable/
 );
 
 const refreshedTask = center.prepareTask({

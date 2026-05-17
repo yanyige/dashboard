@@ -42,6 +42,13 @@
       "type": "array",
       "items": { "type": "string" }
     },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "parallel_group": {
+      "type": "string"
+    },
     "assigned_agent_id": {
       "type": ["string", "null"]
     }

@@ -43,6 +43,8 @@ export class ControlCenter {
       skills: agent.skills ?? [],
       status: agent.status ?? "available",
       current_task_id: null,
+      active_task_ids: [],
+      max_parallel_tasks: agent.max_parallel_tasks ?? 1,
       created_at: now(),
       updated_at: now()
     };
@@ -130,6 +132,8 @@ export class ControlCenter {
       title: task.title,
       objective: task.objective,
       priority: task.priority ?? "medium",
+      dependencies: uniqueStrings(task.dependencies ?? []),
+      parallel_group: task.parallel_group ?? "default",
       status: "draft",
       context_status: "missing",
       context_snapshot_id: null,
@@ -180,6 +184,11 @@ export class ControlCenter {
       context_status: "ready",
       context_snapshot_id: context.id,
       required_skills: input.required_skills ?? task.required_skills,
+      dependencies:
+        input.dependencies !== undefined
+          ? uniqueStrings(input.dependencies)
+          : task.dependencies ?? [],
+      parallel_group: input.parallel_group ?? task.parallel_group ?? "default",
       acceptance_criteria: acceptanceCriteria,
       deliverables,
       execution_package: {
@@ -223,24 +232,8 @@ export class ControlCenter {
     const agent = this.getAgent(input.agent_id);
     const task = this.getTask(input.project_id, input.task_id);
 
-    if (agent.status !== "available") {
-      throw new Error(`Agent is not available: ${agent.id}`);
-    }
-
-    if (task.status !== "ready" || task.context_status !== "ready") {
-      throw new Error(`Task must be ready before claim: ${task.id}`);
-    }
-
-    this.assertTaskContextIsCurrent(input.project_id, task);
-
-    const missingSkills = task.required_skills.filter(
-      (skill) => !agent.skills.includes(skill)
-    );
-    if (missingSkills.length > 0) {
-      throw new Error(
-        `Agent ${agent.id} is missing skills: ${missingSkills.join(", ")}`
-      );
-    }
+    this.assertAgentCanAcceptTask(agent);
+    this.assertTaskCanBeClaimed(input.project_id, task, agent);
 
     const claimedTask = {
       ...task,
@@ -255,10 +248,7 @@ export class ControlCenter {
       this.taskPath(input.project_id, input.task_id),
       claimedTask
     );
-    this.updateAgent(agent.id, {
-      status: "busy",
-      current_task_id: `${input.project_id}/${input.task_id}`
-    });
+    this.assignTaskToAgent(agent.id, `${input.project_id}/${input.task_id}`);
     this.appendEvent("task.claimed", {
       project_id: input.project_id,
       task_id: input.task_id,
@@ -266,6 +256,25 @@ export class ControlCenter {
     });
 
     return claimedTask;
+  }
+
+  claimNextTask(input) {
+    requireFields(input, ["project_id", "agent_id"]);
+
+    this.assertAgentCanAcceptTask(this.getAgent(input.agent_id));
+    const claimableTasks = this.listClaimableTasks(input.project_id, {
+      agent_id: input.agent_id
+    });
+    const nextTask = claimableTasks[0];
+    if (!nextTask) {
+      throw new Error(`No claimable task for agent ${input.agent_id} in ${input.project_id}`);
+    }
+
+    return this.claimTask({
+      project_id: input.project_id,
+      task_id: nextTask.id,
+      agent_id: input.agent_id
+    });
   }
 
   startTask(input) {
@@ -306,14 +315,13 @@ export class ControlCenter {
       throw new Error(`Task is not in progress for agent: ${input.task_id}`);
     }
 
-    this.assertTaskContextIsCurrent(input.project_id, task);
-
     const deliveryId = this.nextId(this.deliveriesDir(input.project_id), "delivery");
     const delivery = {
       id: deliveryId,
       project_id: input.project_id,
       task_id: input.task_id,
       agent_id: input.agent_id,
+      context_snapshot_id: task.context_snapshot_id,
       summary: input.summary,
       files_changed: input.files_changed ?? [],
       verification: input.verification ?? [],
@@ -423,10 +431,10 @@ export class ControlCenter {
     );
 
     if (doneTask.assigned_agent_id) {
-      this.updateAgent(doneTask.assigned_agent_id, {
-        status: "available",
-        current_task_id: null
-      });
+      this.releaseTaskFromAgent(
+        doneTask.assigned_agent_id,
+        `${input.project_id}/${doneTask.id}`
+      );
     }
 
     const followupTasks = (input.followups ?? []).map((followup) =>
@@ -436,6 +444,8 @@ export class ControlCenter {
         objective: followup.objective,
         priority: followup.priority ?? "medium",
         required_skills: followup.required_skills ?? [],
+        dependencies: followup.dependencies ?? [],
+        parallel_group: followup.parallel_group ?? "default",
         created_by: input.steward_id
       })
     );
@@ -584,10 +594,19 @@ export class ControlCenter {
         `Review submitted task(s): ${taskSummary.review_task_ids.join(", ")}.`
       );
     }
-    if (byStatus.ready) {
-      progress.push(`${byStatus.ready} task(s) are ready to claim.`);
+    if (taskSummary.claimable_task_ids.length > 0) {
+      progress.push(
+        `${taskSummary.claimable_task_ids.length} task(s) are claimable now.`
+      );
       nextActions.push(
-        `Assign or claim ready task(s): ${taskSummary.ready_task_ids.join(", ")}.`
+        `Agents can claim task(s): ${taskSummary.claimable_task_ids.join(", ")}.`
+      );
+    } else if (byStatus.ready) {
+      progress.push(`${byStatus.ready} ready task(s) are waiting on dependencies or context.`);
+    }
+    if (taskSummary.dependency_blocked_task_ids.length > 0) {
+      progress.push(
+        `${taskSummary.dependency_blocked_task_ids.length} ready task(s) are waiting for dependencies: ${taskSummary.dependency_blocked_task_ids.join(", ")}.`
       );
     }
 
@@ -650,11 +669,11 @@ export class ControlCenter {
     if (!agent) {
       throw new Error(`Agent not found: ${agentId}`);
     }
-    return agent;
+    return normalizeAgent(agent);
   }
 
   listAgents() {
-    return this.readJson(this.agentRegistryPath()).agents;
+    return this.readJson(this.agentRegistryPath()).agents.map(normalizeAgent);
   }
 
   getProject(projectId) {
@@ -702,6 +721,33 @@ export class ControlCenter {
     const context = this.getContext(projectId, project.current_context_snapshot_id);
     const latestStatus = this.getLatestProjectStatus(projectId);
     const tasks = this.listTasks(projectId);
+    const taskHall = tasks.map((task) => {
+      const dependencyState = this.getTaskDependencyState(projectId, task);
+      const claimability = this.getTaskClaimability(projectId, task);
+
+      return {
+        id: task.id,
+        title: task.title,
+        status: task.status,
+        context_status: task.context_status,
+        priority: task.priority,
+        dependencies: dependencyState.dependencies,
+        blocked_by: dependencyState.blocked_by,
+        is_claimable: claimability.claimable,
+        claim_blockers: claimability.reasons,
+        parallel_group: task.parallel_group ?? "default",
+        assigned_agent_id: task.assigned_agent_id
+      };
+    });
+    const taskSummary = {
+      ...summarizeTasks(tasks),
+      claimable_task_ids: taskHall
+        .filter((task) => task.is_claimable)
+        .map((task) => task.id),
+      dependency_blocked_task_ids: taskHall
+        .filter((task) => task.status === "ready" && task.blocked_by.length > 0)
+        .map((task) => task.id)
+    };
 
     return {
       project,
@@ -712,16 +758,23 @@ export class ControlCenter {
         summary: context.summary,
         completed_task_count: context.completed_tasks.length
       },
-      task_summary: summarizeTasks(tasks),
-      task_hall: tasks.map((task) => ({
-        id: task.id,
-        title: task.title,
-        status: task.status,
-        context_status: task.context_status,
-        priority: task.priority,
-        assigned_agent_id: task.assigned_agent_id
-      }))
+      task_summary: taskSummary,
+      task_hall: taskHall
     };
+  }
+
+  listClaimableTasks(projectId, options = {}) {
+    const agent = options.agent_id ? this.getAgent(options.agent_id) : null;
+
+    return this.listTasks(projectId)
+      .map((task) => ({
+        ...task,
+        dependencies: task.dependencies ?? [],
+        parallel_group: task.parallel_group ?? "default",
+        claimability: this.getTaskClaimability(projectId, task, agent)
+      }))
+      .filter((task) => task.claimability.claimable)
+      .sort(compareTasksForClaim);
   }
 
   listProjectStatusUpdates(projectId) {
@@ -776,15 +829,35 @@ export class ControlCenter {
       throw new Error(`Agent not found: ${agentId}`);
     }
 
-    registry.agents[agentIndex] = {
-      ...registry.agents[agentIndex],
+    registry.agents[agentIndex] = normalizeAgent({
+      ...normalizeAgent(registry.agents[agentIndex]),
       ...patch,
       updated_at: now()
-    };
+    });
     registry.updated_at = now();
     this.writeRecord("agent-registry", this.agentRegistryPath(), registry);
 
     return registry.agents[agentIndex];
+  }
+
+  assignTaskToAgent(agentId, taskRef) {
+    const agent = this.getAgent(agentId);
+    const activeTaskIds = uniqueStrings([...agent.active_task_ids, taskRef]);
+    return this.updateAgent(agentId, {
+      status: activeTaskIds.length > 0 ? "busy" : "available",
+      current_task_id: activeTaskIds[0] ?? null,
+      active_task_ids: activeTaskIds
+    });
+  }
+
+  releaseTaskFromAgent(agentId, taskRef) {
+    const agent = this.getAgent(agentId);
+    const activeTaskIds = agent.active_task_ids.filter((id) => id !== taskRef);
+    return this.updateAgent(agentId, {
+      status: activeTaskIds.length > 0 ? "busy" : "available",
+      current_task_id: activeTaskIds[0] ?? null,
+      active_task_ids: activeTaskIds
+    });
   }
 
   assertTaskContextIsCurrent(projectId, task) {
@@ -792,6 +865,97 @@ export class ControlCenter {
     if (task.context_snapshot_id !== project.current_context_snapshot_id) {
       throw new Error(
         `Task ${task.id} was prepared with ${task.context_snapshot_id}, but current project context is ${project.current_context_snapshot_id}`
+      );
+    }
+  }
+
+  getTaskDependencyState(projectId, task) {
+    const dependencies = uniqueStrings(task.dependencies ?? []);
+    const blockedBy = [];
+
+    for (const dependencyId of dependencies) {
+      let dependencyTask = null;
+      try {
+        dependencyTask = this.getTask(projectId, dependencyId);
+      } catch {
+        blockedBy.push(dependencyId);
+        continue;
+      }
+
+      if (dependencyTask.status !== "done") {
+        blockedBy.push(dependencyId);
+      }
+    }
+
+    return {
+      dependencies,
+      blocked_by: blockedBy,
+      dependencies_satisfied: blockedBy.length === 0
+    };
+  }
+
+  getTaskClaimability(projectId, task, agent = null) {
+    const reasons = [];
+
+    if (task.status !== "ready") {
+      reasons.push(`status=${task.status}`);
+    }
+    if (task.context_status !== "ready") {
+      reasons.push(`context=${task.context_status}`);
+    }
+
+    const project = this.getProject(projectId);
+    if (task.context_snapshot_id !== project.current_context_snapshot_id) {
+      reasons.push(`context_snapshot=${task.context_snapshot_id ?? "missing"}`);
+    }
+
+    const dependencyState = this.getTaskDependencyState(projectId, task);
+    if (dependencyState.blocked_by.length > 0) {
+      reasons.push(`blocked_by=${dependencyState.blocked_by.join(",")}`);
+    }
+
+    if (agent) {
+      const capacity = getAgentCapacity(agent);
+      if (agent.status === "offline") {
+        reasons.push("agent=offline");
+      }
+      if (capacity.active >= capacity.max) {
+        reasons.push(`agent_capacity=${capacity.active}/${capacity.max}`);
+      }
+
+      const missingSkills = (task.required_skills ?? []).filter(
+        (skill) => !agent.skills.includes(skill)
+      );
+      if (missingSkills.length > 0) {
+        reasons.push(`missing_skills=${missingSkills.join(",")}`);
+      }
+    }
+
+    return {
+      claimable: reasons.length === 0,
+      reasons,
+      blocked_by: dependencyState.blocked_by
+    };
+  }
+
+  assertTaskCanBeClaimed(projectId, task, agent) {
+    const claimability = this.getTaskClaimability(projectId, task, agent);
+    if (!claimability.claimable) {
+      throw new Error(
+        `Task ${task.id} is not claimable: ${claimability.reasons.join("; ")}`
+      );
+    }
+  }
+
+  assertAgentCanAcceptTask(agent) {
+    if (agent.status === "offline") {
+      throw new Error(`Agent is offline: ${agent.id}`);
+    }
+
+    const capacity = getAgentCapacity(agent);
+    if (capacity.active >= capacity.max) {
+      throw new Error(
+        `Agent ${agent.id} has no free task capacity: ${capacity.active}/${capacity.max}`
       );
     }
   }
@@ -970,6 +1134,73 @@ function requireFields(value, fields) {
 
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function normalizeAgent(agent) {
+  const rawActiveTaskIds =
+    Array.isArray(agent.active_task_ids) && agent.active_task_ids.length > 0
+      ? agent.active_task_ids
+      : agent.current_task_id
+        ? [agent.current_task_id]
+        : [];
+  const activeTaskIds = uniqueStrings(
+    rawActiveTaskIds
+  );
+
+  return {
+    ...agent,
+    skills: agent.skills ?? [],
+    current_task_id: activeTaskIds[0] ?? null,
+    active_task_ids: activeTaskIds,
+    max_parallel_tasks:
+      Number.isInteger(agent.max_parallel_tasks) && agent.max_parallel_tasks > 0
+        ? agent.max_parallel_tasks
+        : 1
+  };
+}
+
+function getAgentCapacity(agent) {
+  const normalized = normalizeAgent(agent);
+  return {
+    active: normalized.active_task_ids.length,
+    max: normalized.max_parallel_tasks
+  };
+}
+
+function uniqueStrings(values) {
+  return [
+    ...new Set(
+      (Array.isArray(values) ? values : [values])
+        .map((value) => String(value).trim())
+        .filter(Boolean)
+    )
+  ];
+}
+
+function compareTasksForClaim(left, right) {
+  const leftPriority = priorityRank(left.priority);
+  const rightPriority = priorityRank(right.priority);
+  if (leftPriority !== rightPriority) {
+    return leftPriority - rightPriority;
+  }
+
+  const createdCompare = String(left.created_at ?? "").localeCompare(
+    String(right.created_at ?? "")
+  );
+  if (createdCompare !== 0) {
+    return createdCompare;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+function priorityRank(priority) {
+  return {
+    urgent: 0,
+    high: 1,
+    medium: 2,
+    low: 3
+  }[priority] ?? 2;
 }
 
 function summarizeTasks(tasks) {

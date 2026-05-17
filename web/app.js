@@ -125,7 +125,7 @@ function renderMetrics(summary) {
   const byStatus = summary.by_status ?? {};
   const byContext = summary.by_context_status ?? {};
   elements.metricTasks.textContent = summary.total ?? 0;
-  elements.metricReady.textContent = byStatus.ready ?? 0;
+  elements.metricReady.textContent = summary.claimable_task_ids?.length ?? byStatus.ready ?? 0;
   elements.metricDraft.textContent = byStatus.draft ?? 0;
   elements.metricStale.textContent = byContext.stale ?? 0;
   elements.metricBlocked.textContent = byStatus.blocked ?? 0;
@@ -178,7 +178,7 @@ function renderLatestCheck(check) {
 function renderTasks(tasks) {
   elements.taskCountLabel.textContent = `${tasks.length} task${tasks.length === 1 ? "" : "s"}`;
   if (tasks.length === 0) {
-    elements.taskRows.innerHTML = `<tr><td colspan="6" class="empty-state">No tasks in this project.</td></tr>`;
+    elements.taskRows.innerHTML = `<tr><td colspan="8" class="empty-state">No tasks in this project.</td></tr>`;
     return;
   }
 
@@ -191,6 +191,8 @@ function renderTasks(tasks) {
         <td>${statusPill(task.status)}</td>
         <td>${statusPill(task.context_status)}</td>
         <td>${escapeHtml(task.priority)}</td>
+        <td>${statusPill(task.is_claimable ? "yes" : "no")}</td>
+        <td>${escapeHtml(formatDependencies(task))}</td>
         <td>${escapeHtml(task.assigned_agent_id ?? "-")}</td>
       `;
       return row;
@@ -245,6 +247,18 @@ function setHealth(health) {
 
 function statusPill(value) {
   return `<span class="pill">${escapeHtml(value)}</span>`;
+}
+
+function formatDependencies(task) {
+  const dependencies = task.dependencies ?? [];
+  if (dependencies.length === 0) {
+    return "-";
+  }
+
+  const blocked = new Set(task.blocked_by ?? []);
+  return dependencies
+    .map((dependency) => (blocked.has(dependency) ? `${dependency} pending` : dependency))
+    .join(", ");
 }
 
 function healthPill(value) {

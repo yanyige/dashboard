@@ -32,7 +32,10 @@ Commands:
   prepare-task       Context steward prepares a draft task
   list-tasks         List tasks in a project
   show-task          Show one task
+  list-claimable-tasks
+                    List ready tasks whose dependencies and context allow claiming
   claim-task         Agent claims a ready task
+  claim-next-task    Agent claims the highest-priority claimable task
   start-task         Agent starts a claimed task
   deliver-task       Agent submits delivery evidence
   accept-delivery    Context steward accepts a delivery and advances context
@@ -65,7 +68,10 @@ const handlers = {
   "prepare-task": handlePrepareTask,
   "list-tasks": handleListTasks,
   "show-task": handleShowTask,
+  "list-claimable-tasks": handleListClaimableTasks,
   "claim-task": handleClaimTask,
+  "claim-next-task": handleClaimNextTask,
+  "claim-next": handleClaimNextTask,
   "start-task": handleStartTask,
   "deliver-task": handleDeliverTask,
   "accept-delivery": handleAcceptDelivery,
@@ -111,7 +117,8 @@ function handleRegisterAgent(center, flags) {
     name: requiredFlag(flags, "name"),
     role: requiredFlag(flags, "role"),
     skills: csvFlag(flags, "skills"),
-    status: stringFlag(flags, "status") ?? "available"
+    status: stringFlag(flags, "status") ?? "available",
+    max_parallel_tasks: positiveIntegerFlag(flags, "max-parallel-tasks") ?? 1
   });
 
   return { agent };
@@ -213,6 +220,8 @@ function handlePublishTask(center, flags) {
     title: requiredFlag(flags, "title"),
     objective: requiredFlag(flags, "objective"),
     priority: stringFlag(flags, "priority") ?? "medium",
+    dependencies: collectFlags(flags, "depends-on", "dependency"),
+    parallel_group: stringFlag(flags, "parallel-group") ?? "default",
     required_skills: csvFlag(flags, "skills", "required-skills"),
     created_by: stringFlag(flags, "created-by") ?? "human-owner"
   });
@@ -221,6 +230,7 @@ function handlePublishTask(center, flags) {
 }
 
 function handlePrepareTask(center, flags) {
+  const dependencies = collectFlags(flags, "depends-on", "dependency");
   const task = center.prepareTask({
     project_id: projectFlag(flags),
     task_id: taskFlag(flags),
@@ -230,7 +240,9 @@ function handlePrepareTask(center, flags) {
     assumptions: collectFlags(flags, "assumption"),
     acceptance_criteria: collectFlags(flags, "criterion", "acceptance-criterion"),
     deliverables: collectFlags(flags, "deliverable"),
-    required_skills: optionalCsvFlag(flags, "skills", "required-skills")
+    required_skills: optionalCsvFlag(flags, "skills", "required-skills"),
+    dependencies: dependencies.length > 0 ? dependencies : undefined,
+    parallel_group: stringFlag(flags, "parallel-group")
   });
 
   return { task };
@@ -263,10 +275,27 @@ function handleShowTask(center, flags) {
   return { task: center.getTask(projectFlag(flags), taskFlag(flags)) };
 }
 
+function handleListClaimableTasks(center, flags) {
+  return {
+    tasks: center.listClaimableTasks(projectFlag(flags), {
+      agent_id: stringFlag(flags, "agent", "agent-id")
+    })
+  };
+}
+
 function handleClaimTask(center, flags) {
   const task = center.claimTask({
     project_id: projectFlag(flags),
     task_id: taskFlag(flags),
+    agent_id: requiredAnyFlag(flags, "agent", "agent-id")
+  });
+
+  return { task };
+}
+
+function handleClaimNextTask(center, flags) {
+  const task = center.claimNextTask({
+    project_id: projectFlag(flags),
     agent_id: requiredAnyFlag(flags, "agent", "agent-id")
   });
 
@@ -335,9 +364,10 @@ function printResult(command, result, flags) {
           agent.id,
           agent.role,
           agent.status,
+          `${agent.active_task_ids.length}/${agent.max_parallel_tasks}`,
           agent.skills.join(",")
         ]),
-        ["id", "role", "status", "skills"]
+        ["id", "role", "status", "capacity", "skills"]
       );
       break;
     case "create-project":
@@ -432,16 +462,30 @@ function printResult(command, result, flags) {
           task.status,
           task.context_status,
           task.priority,
+          (task.dependencies ?? []).join(",") || "-",
           task.assigned_agent_id ?? "-",
           task.title
         ]),
-        ["id", "status", "context", "priority", "agent", "title"]
+        ["id", "status", "context", "priority", "depends_on", "agent", "title"]
       );
       break;
     case "show-task":
       console.log(JSON.stringify(result.task, null, 2));
       break;
+    case "list-claimable-tasks":
+      printRows(
+        result.tasks.map((task) => [
+          task.id,
+          task.priority,
+          (task.dependencies ?? []).join(",") || "-",
+          task.title
+        ]),
+        ["id", "priority", "depends_on", "title"]
+      );
+      break;
     case "claim-task":
+    case "claim-next-task":
+    case "claim-next":
       console.log(
         `claimed task ${result.task.id} by ${result.task.assigned_agent_id}`
       );
@@ -591,6 +635,19 @@ function optionalCsvFlag(flags, ...names) {
     .filter(Boolean);
 }
 
+function positiveIntegerFlag(flags, ...names) {
+  const value = stringFlag(flags, ...names);
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`Expected positive integer for --${names[0]}`);
+  }
+  return parsed;
+}
+
 function parseFollowups(values) {
   return values.map((value) => {
     const [title, objective, priority = "medium", skills = ""] = value
@@ -667,10 +724,12 @@ function printDashboard(dashboard) {
         task.status,
         task.context_status,
         task.priority,
+        task.is_claimable ? "yes" : "no",
+        (task.blocked_by ?? []).join(",") || "-",
         task.assigned_agent_id ?? "-",
         task.title
       ]),
-      ["id", "status", "context", "priority", "agent", "title"]
+      ["id", "status", "context", "priority", "claimable", "blocked_by", "agent", "title"]
     );
   }
 }

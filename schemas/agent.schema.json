@@ -20,6 +20,14 @@
     },
     "current_task_id": {
       "type": ["string", "null"]
+    },
+    "active_task_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "max_parallel_tasks": {
+      "type": "integer",
+      "minimum": 1
     }
   }
 }
