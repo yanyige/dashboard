@@ -83,7 +83,7 @@ npm run ccc -- archive-project \
 
 Archived projects remain in project lists and dashboards, but scheduled checks report them as `done` and active task routing rejects new publish/prepare/claim/start operations.
 
-Use `check-projects` for the periodic Context Steward pass. It checks every project, writes one status snapshot per project, and records the full check run under `checks/`.
+Use `check-projects` for the periodic Context Steward pass. It checks every project, writes one status snapshot per project, records the full check run under `checks/`, and creates de-duplicated requirement proposals when the status check finds project-manager work that should be reviewed before execution. Generated proposals cover signals such as stale owner reports, review tasks, stale task context, draft tasks that still need context, blocked tasks, empty active projects, and claimable work that needs Agent routing. They are never published directly into the task hall.
 
 ```bash
 npm run ccc -- check-projects \

@@ -141,6 +141,19 @@ assert.equal(emptyResult.health, "at_risk");
 assert.equal(readyResult.health, "on_track");
 assert.equal(archivedResult.health, "done");
 assert.match(archivedResult.summary, /archived/i);
+assert.equal(emptyResult.generated_requirement_proposal_ids.length, 1);
+assert.deepEqual(readyResult.generated_requirement_proposal_ids, []);
+assert.deepEqual(archivedResult.generated_requirement_proposal_ids, []);
+
+const emptyProposals = jsonRun([
+  "list-requirement-proposals",
+  "--project",
+  "empty-project",
+  "--json"
+]);
+assert.equal(emptyProposals.requirement_proposals.length, 1);
+assert.equal(emptyProposals.requirement_proposals[0].status, "pending");
+assert.match(emptyProposals.requirement_proposals[0].title, /规划首批项目级任务/);
 
 const checks = jsonRun(["list-project-checks", "--json"]);
 assert.equal(checks.checks.length, 1);

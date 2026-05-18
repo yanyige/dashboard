@@ -162,7 +162,11 @@ try {
     ]
   });
   assert.equal(ownerReport.requirement_proposals.length, 1);
-  assert.equal(ownerReport.dashboard.requirement_proposal_summary.pending_ids.length, 1);
+  assert.ok(
+    ownerReport.dashboard.requirement_proposal_summary.pending_ids.includes(
+      ownerReport.requirement_proposals[0].id
+    )
+  );
 
   const approvedProposal = await postJson(
     `${baseUrl}/api/projects/web-demo/requirement-proposals/${ownerReport.requirement_proposals[0].id}/approve`
