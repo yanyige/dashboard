@@ -254,7 +254,7 @@ function renderTasks(tasks) {
       const row = document.createElement("tr");
       row.innerHTML = `
         <td data-label="ID">${escapeHtml(task.id)}</td>
-        <td data-label="标题">${escapeHtml(task.title)}</td>
+        <td data-label="任务内容">${renderTaskDetail(task)}</td>
         <td data-label="状态">${statusPill(formatTaskStatus(task.status))}</td>
         <td data-label="上下文">${statusPill(formatContextStatus(task.context_status))}</td>
         <td data-label="优先级">${escapeHtml(formatPriority(task.priority))}</td>
@@ -271,6 +271,43 @@ function renderTasks(tasks) {
       return row;
     })
   );
+}
+
+function renderTaskDetail(task) {
+  const meta = [
+    `技能：${formatList(task.required_skills)}`,
+    task.created_by ? `创建：${task.created_by}` : null,
+    task.created_at ? `时间：${formatDate(task.created_at)}` : null
+  ].filter(Boolean);
+  const brief = task.task_brief && task.task_brief !== task.objective
+    ? `<p class="task-subtext"><strong>执行说明：</strong>${escapeHtml(task.task_brief)}</p>`
+    : "";
+  const criteria = renderDetailList("验收标准", task.acceptance_criteria);
+  const deliverables = renderDetailList("交付物", task.deliverables);
+
+  return `
+    <div class="task-detail">
+      <strong>${escapeHtml(task.title)}</strong>
+      <p>${escapeHtml(task.objective || "暂无任务描述。")}</p>
+      ${brief}
+      ${criteria}
+      ${deliverables}
+      <div class="task-meta">${meta.map((value) => `<span>${escapeHtml(value)}</span>`).join("")}</div>
+    </div>
+  `;
+}
+
+function renderDetailList(label, values) {
+  if (!values || values.length === 0) {
+    return "";
+  }
+
+  return `
+    <div class="task-detail-list">
+      <span>${escapeHtml(label)}：</span>
+      <ul>${values.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul>
+    </div>
+  `;
 }
 
 function renderCheckHistory(checks) {
@@ -320,6 +357,10 @@ function renderTaskActions(task) {
       <button class="small-button" type="button" data-task-action="reject">退回</button>
     </div>
   `;
+}
+
+function formatList(values) {
+  return values && values.length > 0 ? values.join(", ") : "未指定";
 }
 
 function getSelectedProject() {

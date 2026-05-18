@@ -351,7 +351,7 @@ h4 {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 1080px;
+  min-width: 1180px;
 }
 
 th,
@@ -379,6 +379,59 @@ tr:last-child td {
 .empty-state {
   color: var(--muted);
   padding: 12px 0;
+}
+
+.task-detail {
+  display: grid;
+  gap: 8px;
+  min-width: 360px;
+  max-width: 680px;
+}
+
+.task-detail strong {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.task-detail p,
+.task-subtext {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.task-detail-list {
+  display: grid;
+  gap: 4px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.task-detail-list span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.task-detail-list ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.task-meta span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .action-row {
