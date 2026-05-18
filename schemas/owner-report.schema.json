@@ -26,6 +26,30 @@
       "enum": ["on_track", "at_risk", "blocked", "paused", "done"]
     },
     "summary": { "type": "string" },
+    "context": {
+      "type": ["object", "null"],
+      "properties": {
+        "summary": { "type": "string" },
+        "requirements": {
+          "type": "object",
+          "properties": {
+            "p0": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "p1": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "p2": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "updated_at": { "type": "string" }
+      }
+    },
     "progress": {
       "type": "array",
       "items": { "type": "string" }

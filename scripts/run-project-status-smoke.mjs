@@ -109,6 +109,10 @@ const ownerReport = jsonRun([
   "on_track",
   "--summary",
   "Owner thread reports that the project is moving normally.",
+  "--context-summary",
+  "Owner thread reported context summary.",
+  "--p0",
+  "Owner reported P0 requirement.",
   "--progress",
   "The first draft is understood by the owner thread.",
   "--next-action",
@@ -119,6 +123,10 @@ const ownerReport = jsonRun([
 ]);
 assert.equal(ownerReport.owner_report.id, "owner-report-0001");
 assert.equal(ownerReport.owner_report.proposed_tasks.length, 1);
+assert.equal(ownerReport.owner_report.context.summary, "Owner thread reported context summary.");
+assert.deepEqual(ownerReport.owner_report.context.requirements.p0, [
+  "Owner reported P0 requirement."
+]);
 
 const ownerCheck = jsonRun([
   "check-projects",
@@ -131,6 +139,16 @@ const ownerCheck = jsonRun([
 const ownerCheckResult = ownerCheck.results.find((result) => result.project_id === "status-demo");
 assert.equal(ownerCheckResult.health, "on_track");
 assert.match(ownerCheckResult.summary, /Owner report/);
+
+const ownerDashboard = jsonRun([
+  "show-project-dashboard",
+  "--project",
+  "status-demo",
+  "--json"
+]);
+assert.match(ownerDashboard.dashboard.owner_thread_prompt, /你现在是/);
+assert.equal(ownerDashboard.dashboard.reported_context.source, "owner_report");
+assert.equal(ownerDashboard.dashboard.reported_context.summary, "Owner thread reported context summary.");
 
 const history = jsonRun([
   "list-project-status",

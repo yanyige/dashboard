@@ -56,11 +56,13 @@ const elements = {
   ownerThreadName: document.getElementById("ownerThreadName"),
   ownerThreadStatus: document.getElementById("ownerThreadStatus"),
   ownerReportSummary: document.getElementById("ownerReportSummary"),
+  ownerThreadPrompt: document.getElementById("ownerThreadPrompt"),
   ownerProgressList: document.getElementById("ownerProgressList"),
   ownerRiskList: document.getElementById("ownerRiskList"),
   ownerNextActionList: document.getElementById("ownerNextActionList"),
   ownerProposedTaskList: document.getElementById("ownerProposedTaskList"),
   contextMeta: document.getElementById("contextMeta"),
+  contextSource: document.getElementById("contextSource"),
   contextSummaryInput: document.getElementById("contextSummaryInput"),
   contextP0List: document.getElementById("contextP0List"),
   contextP1List: document.getElementById("contextP1List"),
@@ -348,7 +350,7 @@ function renderProject(dashboard) {
   setHealth(dashboard.project.health);
   renderMetrics(dashboard.task_summary);
   renderOwnerReport(dashboard);
-  renderContext(dashboard.current_context);
+  renderContext(dashboard);
   renderStatus(dashboard.latest_status);
   renderTasks(dashboard.task_hall);
   renderTaskArchive(dashboard.task_index ?? dashboard.task_hall);
@@ -371,6 +373,7 @@ function renderOwnerReport(dashboard) {
     elements.ownerThreadStatus.textContent = "未绑定";
     elements.ownerThreadStatus.className = "pill owner-unassigned";
     elements.ownerReportSummary.textContent = "绑定项目负责人 Thread 后，这里会显示该 Thread 定时上报的项目状态。";
+    elements.ownerThreadPrompt.value = "";
     renderList(elements.ownerProgressList, []);
     renderList(elements.ownerRiskList, []);
     renderList(elements.ownerNextActionList, []);
@@ -386,6 +389,7 @@ function renderOwnerReport(dashboard) {
     : "未绑定负责人 Thread";
   elements.ownerThreadStatus.textContent = ownerStatus.label ?? "未绑定";
   elements.ownerThreadStatus.className = `pill owner-${ownerStatus.state ?? "unassigned"}`;
+  elements.ownerThreadPrompt.value = dashboard.owner_thread_prompt ?? "";
 
   if (!report) {
     elements.ownerReportMeta.textContent = ownerThread ? "等待负责人上报" : "暂无负责人报告";
@@ -431,9 +435,14 @@ function renderStatus(status) {
   renderList(elements.nextActionList, status.next_actions?.map(translateStatusText));
 }
 
-function renderContext(context) {
-  if (!context) {
+function renderContext(dashboard) {
+  const context = dashboard?.current_context ?? null;
+  const reportedContext = dashboard?.reported_context ?? null;
+  const displayContext = reportedContext ?? context;
+
+  if (!context || !displayContext) {
     elements.contextMeta.textContent = "暂无上下文";
+    elements.contextSource.textContent = "上下文口径尚未建立。";
     elements.contextSummaryInput.value = "";
     elements.readmeSource.textContent = "README 尚未读取。";
     renderRequirementList("p0", []);
@@ -442,9 +451,15 @@ function renderContext(context) {
     return;
   }
 
-  const requirements = context.requirements ?? {};
-  elements.contextMeta.textContent = `${context.id} | v${context.version} | 已完成 ${context.completed_task_count} 个任务`;
-  elements.contextSummaryInput.value = context.summary ?? "";
+  const requirements = displayContext.requirements ?? {};
+  const sourceMeta = displayContext.source === "owner_report"
+    ? `${displayContext.source_label} ${displayContext.source_id} | ${formatDate(displayContext.reported_at)}`
+    : `${displayContext.source_label} ${displayContext.source_id}`;
+  elements.contextMeta.textContent = `${sourceMeta} | 快照 ${context.id} v${context.version} | 已完成 ${context.completed_task_count} 个任务`;
+  elements.contextSource.textContent = displayContext.source === "owner_report"
+    ? `当前上下文口径来自项目负责人 Thread 上报；README/快照仅作为辅助来源。`
+    : `当前还没有负责人上报上下文，暂用版本化项目上下文快照。`;
+  elements.contextSummaryInput.value = displayContext.summary ?? "";
   renderReadmeSource(context.source_documents);
   renderRequirementList("p0", requirements.p0 ?? []);
   renderRequirementList("p1", requirements.p1 ?? []);
@@ -844,7 +859,9 @@ function getSelectedTaskIndex() {
 }
 
 function getSelectedRequirements() {
-  const requirements = getSelectedProject()?.current_context?.requirements ?? {};
+  const selected = getSelectedProject();
+  const requirements =
+    selected?.reported_context?.requirements ?? selected?.current_context?.requirements ?? {};
   return {
     p0: [...(requirements.p0 ?? [])],
     p1: [...(requirements.p1 ?? [])],

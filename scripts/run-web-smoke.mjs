@@ -87,6 +87,8 @@ try {
   assert.equal(project.dashboard.task_index.length, 2);
   assert.equal(project.dashboard.task_hall.length, 2);
   assert.equal(project.status_updates.length, 1);
+  assert.match(project.dashboard.owner_thread_prompt, /你现在是/);
+  assert.equal(project.dashboard.reported_context.source, "context_snapshot");
   assert.deepEqual(project.dashboard.current_context.requirements, {
     p0: [],
     p1: [],

@@ -23,7 +23,7 @@ Commands:
   refresh-project-context
                     Refresh project context by reading the local repository README
   set-project-owner Set the project owner Thread
-  owner-report      Submit a project owner Thread status report
+  owner-report      Submit a project owner Thread status report and optional reported context
   list-owner-reports
                     List project owner Thread status reports
   update-project-status
@@ -239,6 +239,8 @@ function handleOwnerReport(center, flags) {
     thread_name: stringFlag(flags, "thread-name", "name"),
     health: requiredFlag(flags, "health"),
     summary: requiredFlag(flags, "summary"),
+    context_summary: stringFlag(flags, "context-summary"),
+    requirements: requirementsFromFlags(flags),
     progress: collectFlags(flags, "progress"),
     risks: collectFlags(flags, "risk"),
     blockers: collectFlags(flags, "blocker"),

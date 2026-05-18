@@ -9,6 +9,8 @@ import {
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { validateRecord } from "./validation.mjs";
 
+const DEFAULT_CONTROL_CENTER_PATH = "/Users/yyg/work/github/codex-control-center";
+
 export class ControlCenter {
   constructor({ root }) {
     if (!root) {
@@ -309,6 +311,10 @@ export class ControlCenter {
       thread_name: input.thread_name ?? project.owner_thread?.name ?? input.thread_id,
       health: input.health,
       summary: input.summary,
+      context: normalizeOwnerReportContext({
+        summary: input.context_summary,
+        requirements: input.requirements
+      }),
       progress: input.progress ?? [],
       risks: input.risks ?? [],
       blockers: input.blockers ?? [],
@@ -1164,6 +1170,16 @@ export class ControlCenter {
     const latestStatus = this.getLatestProjectStatus(projectId);
     const latestOwnerReport = this.getLatestProjectOwnerReport(projectId);
     const ownerReportStatus = getOwnerReportStatus(project, latestOwnerReport);
+    const ownerThreadPrompt = buildProjectOwnerThreadPrompt({
+      project,
+      context,
+      ownerThread: project.owner_thread
+    });
+    const reportedContext = buildReportedContext({
+      context,
+      report: latestOwnerReport,
+      ownerStatus: ownerReportStatus
+    });
     const tasks = this.listTasks(projectId);
     const deliveriesById = new Map(
       this.listDeliveries(projectId).map((delivery) => [delivery.id, delivery])
@@ -1262,9 +1278,11 @@ export class ControlCenter {
     return {
       project,
       owner_thread: project.owner_thread ?? null,
+      owner_thread_prompt: ownerThreadPrompt,
       latest_owner_report: latestOwnerReport,
       owner_report_status: ownerReportStatus,
       latest_status: latestStatus,
+      reported_context: reportedContext,
       current_context: {
         id: context.id,
         version: context.version,
@@ -1766,6 +1784,23 @@ function normalizeOwnerThread(ownerThread = null) {
   };
 }
 
+function normalizeOwnerReportContext(context = {}) {
+  const summary = String(context.summary ?? "").trim();
+  const requirements = normalizeRequirements(context.requirements ?? {});
+  const hasRequirements =
+    requirements.p0.length + requirements.p1.length + requirements.p2.length > 0;
+
+  if (!summary && !hasRequirements) {
+    return null;
+  }
+
+  return {
+    summary,
+    requirements,
+    updated_at: now()
+  };
+}
+
 function normalizeProposedTasks(tasks = []) {
   return tasks
     .map((task) => ({
@@ -1775,6 +1810,112 @@ function normalizeProposedTasks(tasks = []) {
       required_skills: uniqueStrings(task.required_skills ?? task.skills ?? [])
     }))
     .filter((task) => task.title && task.objective);
+}
+
+function buildReportedContext({ context, report, ownerStatus }) {
+  if (report) {
+    const reportContext = report.context ?? {};
+    return {
+      source: "owner_report",
+      source_label: "项目经理上报",
+      source_id: report.id,
+      owner_thread_id: report.thread_id,
+      owner_thread_name: report.thread_name ?? report.thread_id,
+      health: report.health,
+      freshness_minutes: ownerStatus?.freshness_minutes ?? null,
+      summary: reportContext.summary || report.summary,
+      requirements: normalizeRequirements(reportContext.requirements ?? context.requirements),
+      progress: report.progress ?? [],
+      risks: report.risks ?? [],
+      blockers: report.blockers ?? [],
+      next_actions: report.next_actions ?? [],
+      proposed_tasks: report.proposed_tasks ?? [],
+      reported_at: report.answered_at ?? report.created_at ?? null,
+      context_snapshot_id: context.id,
+      context_version: context.version
+    };
+  }
+
+  return {
+    source: "context_snapshot",
+    source_label: "项目上下文快照",
+    source_id: context.id,
+    owner_thread_id: null,
+    owner_thread_name: null,
+    health: null,
+    freshness_minutes: null,
+    summary: context.summary,
+    requirements: normalizeRequirements(context.requirements),
+    progress: [],
+    risks: [],
+    blockers: [],
+    next_actions: [],
+    proposed_tasks: [],
+    reported_at: null,
+    context_snapshot_id: context.id,
+    context_version: context.version
+  };
+}
+
+function buildProjectOwnerThreadPrompt({ project, context, ownerThread }) {
+  const threadId = ownerThread?.thread_id ?? `${project.id}-owner-thread`;
+  const threadName = ownerThread?.name ?? `${project.title}负责人 Thread`;
+  const requirements = normalizeRequirements(context.requirements);
+  const githubUrl = project.github?.web_url ?? project.github?.clone_url ?? "未配置";
+  const p0Flags = requirements.p0.map((item) => `  --p0 "${item}"`).join(" \\\n");
+  const p1Flags = requirements.p1.map((item) => `  --p1 "${item}"`).join(" \\\n");
+  const p2Flags = requirements.p2.map((item) => `  --p2 "${item}"`).join(" \\\n");
+  const requirementFlags = [p0Flags, p1Flags, p2Flags].filter(Boolean).join(" \\\n");
+
+  return [
+    `你现在是「${project.title}」的项目负责人 Thread，不是普通执行 Agent。`,
+    "",
+    "你的职责：",
+    `1. 负责项目 ${project.id} 的真实状态判断、上下文维护、风险识别和下一步任务建议。`,
+    "2. 阅读项目仓库 README 和关键文件，理解当前项目进度。",
+    "3. 把你的项目状态和项目上下文定期写回 Codex Control Center，让总项目经理 Thread 能在 Dashboard 中查看。",
+    "4. 你提出的任务必须围绕项目 P0/P1/P2 需求，并保证任务清晰、可审核、可执行。",
+    "",
+    "项目资料：",
+    `- 项目 ID：${project.id}`,
+    `- GitHub 仓库：${githubUrl}`,
+    `- 控制中心路径：${DEFAULT_CONTROL_CENTER_PATH}`,
+    `- 你的负责人 Thread 标识：${threadId}`,
+    `- 你的显示名称：${threadName}`,
+    "",
+    "请先执行：",
+    "",
+    `cd ${DEFAULT_CONTROL_CENTER_PATH}`,
+    "",
+    "npm run ccc -- set-project-owner \\",
+    `  --project ${project.id} \\`,
+    `  --thread ${threadId} \\`,
+    `  --name "${threadName}" \\`,
+    "  --assigned-by yyg \\",
+    `  --note "负责 ${project.id} 项目状态、需求上下文、风险和任务建议上报"`,
+    "",
+    `npm run ccc -- show-project-dashboard --project ${project.id}`,
+    "",
+    "如果 README 或项目文件比控制中心上下文更新，请刷新上下文：",
+    "",
+    `npm run ccc -- refresh-project-context --project ${project.id} --updated-by ${threadId}`,
+    "",
+    "然后提交负责人报告。报告里的 --context-summary、--p0、--p1、--p2 会成为 Dashboard 中优先展示的项目上下文口径：",
+    "",
+    "npm run ccc -- owner-report \\",
+    `  --project ${project.id} \\`,
+    `  --thread ${threadId} \\`,
+    `  --thread-name "${threadName}" \\`,
+    "  --health at_risk \\",
+    "  --summary \"这里写你对项目当前状态的简明判断。\" \\",
+    "  --context-summary \"这里写项目经理上报的项目上下文摘要。\" \\",
+    `${requirementFlags ? `${requirementFlags} \\\n` : ""}  --progress "这里写已确认的进展。" \\`,
+    "  --risk \"这里写当前主要风险。\" \\",
+    "  --next-action \"这里写下一步动作。\" \\",
+    "  --proposed-task \"任务标题::任务目标描述::high::node,workflow\"",
+    "",
+    "完成后，把 owner report id、当前健康状态、P0/P1/P2 是否需要更新、优先审核的草稿任务、可交给 Agent 执行的任务告诉我。"
+  ].join("\n");
 }
 
 function getOwnerReportStatus(project, report) {

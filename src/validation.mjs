@@ -197,6 +197,7 @@ function validateOwnerReport(value, errors) {
   arrayOfStrings(value, "blockers", errors);
   arrayOfStrings(value, "next_actions", errors);
   arrayValue(value, "proposed_tasks", errors);
+  optionalOwnerReportContext(value, "context", errors);
   optionalStringOrNull(value, "asked_at", errors);
   requiredString(value, "answered_at", errors);
   requiredString(value, "created_at", errors);
@@ -303,6 +304,17 @@ function optionalOwnerThread(value, field, errors) {
   optionalString(value[field], "note", errors);
   optionalString(value[field], "assigned_by", errors);
   optionalString(value[field], "assigned_at", errors);
+  optionalString(value[field], "updated_at", errors);
+}
+
+function optionalOwnerReportContext(value, field, errors) {
+  if (value?.[field] === undefined || value?.[field] === null) {
+    return;
+  }
+
+  objectValue(value, field, errors);
+  optionalString(value[field], "summary", errors);
+  optionalRequirements(value[field], "requirements", errors);
   optionalString(value[field], "updated_at", errors);
 }
 

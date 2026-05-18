@@ -359,6 +359,17 @@ h4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.owner-prompt-block {
+  display: grid;
+  gap: 8px;
+}
+
+.owner-prompt-textarea {
+  min-height: 190px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
 .context-panel {
   display: grid;
   gap: 14px;
@@ -369,6 +380,7 @@ h4 {
   gap: 10px;
 }
 
+.context-source,
 .readme-source {
   border: 1px solid var(--border);
   border-radius: 8px;

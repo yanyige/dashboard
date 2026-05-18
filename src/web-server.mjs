@@ -130,6 +130,8 @@ async function handleApi({ center, request, response, url }) {
       thread_name: body.thread_name,
       health: body.health,
       summary: body.summary,
+      context_summary: body.context_summary,
+      requirements: body.requirements,
       progress: body.progress,
       risks: body.risks,
       blockers: body.blockers,
