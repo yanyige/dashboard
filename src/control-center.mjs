@@ -1167,13 +1167,6 @@ export class ControlCenter {
         source: "scheduled_check",
         check_run_id: checkId
       });
-      const dashboard = this.getProjectDashboard(project.id);
-      const generatedRequirementProposals =
-        this.createRequirementProposalsFromProjectCheck({
-          dashboard,
-          assessment,
-          updated_by: updatedBy
-        });
 
       return {
         project_id: project.id,
@@ -1181,9 +1174,7 @@ export class ControlCenter {
         health: updated.status_update.health,
         status_update_id: updated.status_update.id,
         context_snapshot_id: updated.status_update.context_snapshot_id,
-        generated_requirement_proposal_ids: generatedRequirementProposals.map(
-          (proposal) => proposal.id
-        ),
+        generated_requirement_proposal_ids: [],
         summary: updated.status_update.summary
       };
     });
@@ -1204,46 +1195,6 @@ export class ControlCenter {
     });
 
     return { check: checkRun, results };
-  }
-
-  createRequirementProposalsFromProjectCheck(input) {
-    const dashboard = input.dashboard;
-    const project = dashboard.project;
-    if (project.status !== "active") {
-      return [];
-    }
-
-    const proposalInputs = buildProjectCheckRequirementProposals({
-      dashboard,
-      assessment: input.assessment
-    });
-    const proposals = [];
-
-    for (const proposalInput of proposalInputs) {
-      const existingProposal = this.findMatchingRequirementProposal(
-        project.id,
-        proposalInput
-      );
-      if (existingProposal) {
-        proposals.push(existingProposal);
-        continue;
-      }
-
-      proposals.push(
-        this.createRequirementProposal({
-          ...proposalInput,
-          project_id: project.id,
-          owner_report_id:
-            proposalInput.owner_report_id ??
-            input.assessment.owner_report_id ??
-            dashboard.latest_owner_report?.id ??
-            null,
-          proposed_by: input.updated_by
-        })
-      );
-    }
-
-    return proposals;
   }
 
   assessProject(projectId) {
@@ -2415,6 +2366,7 @@ function buildProjectOwnerThreadPrompt({ project, context, ownerThread }) {
     "2. 阅读项目仓库 README 和关键文件，理解当前项目进度。",
     "3. 把你的项目状态和项目上下文定期写回 Codex Control Center，让总项目经理 Thread 能在 Dashboard 中查看。",
     "4. 你提出的任务必须围绕项目 P0/P1/P2 需求，并保证任务清晰、可审核、可执行。",
+    "5. 总项目经理只做治理、验收和调度，不替你规划项目业务需求；下一步做什么由你这个项目负责人决定并上报。",
     "",
     "项目资料：",
     `- 项目 ID：${project.id}`,
@@ -2488,129 +2440,6 @@ function getOwnerReportStatus(project, report) {
     freshness_minutes: freshnessMinutes,
     stale_after_minutes: 30
   };
-}
-
-function buildProjectCheckRequirementProposals({ dashboard, assessment }) {
-  const project = dashboard.project;
-  const taskSummary = dashboard.task_summary;
-  const ownerStatus = dashboard.owner_report_status;
-  const proposals = [];
-
-  if (ownerStatus.state === "missing") {
-    proposals.push({
-      title: "提交项目负责人首份状态报告",
-      objective:
-        "项目负责人 Thread 已绑定但尚未提交状态报告。需要提交首份 owner report，说明当前项目上下文、P0/P1/P2 需求、风险和下一步任务建议。",
-      priority: "high",
-      required_skills: ["project-management", "context"]
-    });
-  }
-
-  if (ownerStatus.state === "stale") {
-    proposals.push({
-      title: "刷新项目负责人状态报告",
-      objective:
-        "项目负责人报告已过期。需要读取最新项目状态和仓库线索，提交新的 owner report，刷新项目上下文、风险和下一步任务建议。",
-      priority: "high",
-      required_skills: ["project-management", "context"]
-    });
-  }
-
-  if (taskSummary.review_task_ids.length > 0) {
-    const taskIds = sortedIds(taskSummary.review_task_ids);
-    proposals.push({
-      title: `验收待审核任务：${taskIds.join(", ")}`,
-      objective:
-        `任务 ${taskIds.join(", ")} 已提交 review。需要检查交付摘要、变更文件、验证记录、AI 自检和验收标准，决定接受或退回。`,
-      priority: "urgent",
-      required_skills: ["review", "context"]
-    });
-  }
-
-  if (taskSummary.stale_task_ids.length > 0) {
-    const taskIds = sortedIds(taskSummary.stale_task_ids);
-    proposals.push({
-      title: `重新准备过期任务上下文：${taskIds.join(", ")}`,
-      objective:
-        `任务 ${taskIds.join(", ")} 的执行上下文已落后于当前项目上下文。需要重新准备任务说明、验收标准和交付物后，才能进入可领取任务队列。`,
-      priority: "high",
-      required_skills: ["context", "task-design"]
-    });
-  }
-
-  if (taskSummary.needs_context_task_ids.length > 0) {
-    const taskIds = sortedIds(taskSummary.needs_context_task_ids);
-    proposals.push({
-      title: `准备未下发任务上下文：${taskIds.join(", ")}`,
-      objective:
-        `任务 ${taskIds.join(", ")} 仍缺少执行上下文。需要补齐任务说明、验收标准、交付物、相关文件和假设，再由项目 owner 下放给执行 Agent。`,
-      priority: "high",
-      required_skills: ["context", "task-design"]
-    });
-  }
-
-  if (taskSummary.blocked_task_ids.length > 0) {
-    const taskIds = sortedIds(taskSummary.blocked_task_ids);
-    proposals.push({
-      title: `解除阻塞任务：${taskIds.join(", ")}`,
-      objective:
-        `任务 ${taskIds.join(", ")} 当前处于 blocked。需要定位阻塞原因，明确解法、依赖和验收路径，让项目恢复可执行状态。`,
-      priority: "urgent",
-      required_skills: ["workflow", "debugging"]
-    });
-  }
-
-  if (
-    taskSummary.total === 0 &&
-    project.status === "active" &&
-    dashboard.requirement_proposal_summary.pending_ids.length === 0
-  ) {
-    proposals.push({
-      title: "规划首批项目级任务",
-      objective:
-        "当前项目还没有项目级任务。需要基于项目目标、上下文和 P0/P1/P2 需求规划首批待审核任务，保证后续 Agent 有明确、可验收的工作入口。",
-      priority: "high",
-      required_skills: ["product-design", "task-design"]
-    });
-  }
-
-  if (
-    taskSummary.claimable_task_ids.length > 0 &&
-    ownerStatus.state !== "stale"
-  ) {
-    const taskIds = sortedIds(taskSummary.claimable_task_ids);
-    proposals.push({
-      title: `分派可领取任务：${taskIds.join(", ")}`,
-      objective:
-        `任务 ${taskIds.join(", ")} 已可领取。需要通知匹配技能的执行 Agent 领取任务，并跟踪其接收计划、执行状态和下一次回报。`,
-      priority: "medium",
-      required_skills: ["workflow", "agent-coordination"]
-    });
-  }
-
-  return proposals.filter(
-    (proposal) =>
-      proposal.title &&
-      proposal.objective &&
-      !isLowSignalProjectCheckProposal({ proposal, assessment })
-  );
-}
-
-function isLowSignalProjectCheckProposal({ proposal, assessment }) {
-  if (assessment.health === "done") {
-    return true;
-  }
-  if (
-    proposal.title.startsWith("分派可领取任务") &&
-    assessment.health === "on_track"
-  ) {
-    return true;
-  }
-  return false;
-}
-
-function sortedIds(ids) {
-  return uniqueStrings(ids).sort();
 }
 
 function buildAssessmentFromOwnerReport({ report, ownerStatus, taskSummary }) {

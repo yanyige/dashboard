@@ -175,15 +175,11 @@ const ownerDashboard = jsonRun([
 assert.match(ownerDashboard.dashboard.owner_thread_prompt, /你现在是/);
 assert.equal(ownerDashboard.dashboard.reported_context.source, "owner_report");
 assert.equal(ownerDashboard.dashboard.reported_context.summary, "Owner thread reported context summary.");
-assert.equal(ownerDashboard.dashboard.requirement_proposal_summary.total, 2);
+assert.equal(ownerDashboard.dashboard.requirement_proposal_summary.total, 1);
 assert.deepEqual(ownerDashboard.dashboard.requirement_proposal_summary.approved_ids, [
   pendingProposals.requirement_proposals[0].id
 ]);
-assert.equal(ownerDashboard.dashboard.requirement_proposal_summary.pending_ids.length, 1);
-const checkGeneratedProposal = ownerDashboard.dashboard.requirement_proposals.find(
-  (proposal) => proposal.id === ownerDashboard.dashboard.requirement_proposal_summary.pending_ids[0]
-);
-assert.match(checkGeneratedProposal.title, /准备未下发任务上下文/);
+assert.equal(ownerDashboard.dashboard.requirement_proposal_summary.pending_ids.length, 0);
 
 const history = jsonRun([
   "list-project-status",

@@ -83,7 +83,7 @@ npm run ccc -- archive-project \
 
 Archived projects remain in project lists and dashboards, but scheduled checks report them as `done` and active task routing rejects new publish/prepare/claim/start operations.
 
-Use `check-projects` for the periodic Context Steward pass. It checks every project, writes one status snapshot per project, records the full check run under `checks/`, and creates de-duplicated requirement proposals when the status check finds project-manager work that should be reviewed before execution. Generated proposals cover signals such as stale owner reports, review tasks, stale task context, draft tasks that still need context, blocked tasks, empty active projects, and claimable work that needs Agent routing. They are never published directly into the task hall.
+Use `check-projects` for the periodic overall-PM pass. It checks every project, writes one status snapshot per project, and records the full check run under `checks/`. It does not decide what a project should build next and does not create project requirement proposals. Project-level requirements come from the project owner Thread via `owner-report --proposed-task` or from a human owner through the Dashboard requirement form.
 
 ```bash
 npm run ccc -- check-projects \
@@ -340,7 +340,7 @@ Every lifecycle event is still written to the legacy `events.json` compatibility
 
 ### Requirement Proposal Review
 
-Project owner reports can include `--proposed-task` entries. Those entries are stored as requirement proposals first, not executable task hall work. A human owner or steward reviews each proposal with `approve-requirement-proposal` or `reject-requirement-proposal`; approval creates a draft task in the task hall, where it can then be prepared and released to Agents.
+Project owner reports can include `--proposed-task` entries. Those entries are stored as requirement proposals first, not executable task hall work. A human owner or steward reviews each proposal with `approve-requirement-proposal` or `reject-requirement-proposal`; approval creates a draft task in the task hall, where it can then be prepared and released to Agents. The overall PM should not invent project scope for other projects; it asks the project owner Thread for a fresh report when context is stale or missing.
 
 ### Executor Agent
 
