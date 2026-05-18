@@ -1,9 +1,7 @@
 const state = {
   data: null,
   selectedProjectId: null,
-  loading: false,
-  taskSearch: "",
-  taskStatusFilter: "all"
+  loading: false
 };
 
 const HEALTH_LABELS = {
@@ -39,6 +37,25 @@ const PRIORITY_LABELS = {
   low: "低"
 };
 
+const QUEUE_STATUSES = new Set(["ready", "claimed", "in_progress", "review", "blocked"]);
+const ACTIVE_STATUSES = new Set(["claimed", "in_progress", "review"]);
+const PRIORITY_ORDER = {
+  urgent: 0,
+  high: 1,
+  medium: 2,
+  low: 3
+};
+const TASK_STATUS_ORDER = {
+  in_progress: 0,
+  claimed: 1,
+  review: 2,
+  ready: 3,
+  blocked: 4,
+  draft: 5,
+  rejected: 6,
+  done: 7
+};
+
 const elements = {
   generatedAt: document.getElementById("generatedAt"),
   projectList: document.getElementById("projectList"),
@@ -52,9 +69,9 @@ const elements = {
   projectGoal: document.getElementById("projectGoal"),
   healthBadge: document.getElementById("healthBadge"),
   metricTasks: document.getElementById("metricTasks"),
-  metricReady: document.getElementById("metricReady"),
-  metricDraft: document.getElementById("metricDraft"),
-  metricStale: document.getElementById("metricStale"),
+  metricQueued: document.getElementById("metricQueued"),
+  metricActiveTasks: document.getElementById("metricActiveTasks"),
+  metricUnissued: document.getElementById("metricUnissued"),
   metricBlocked: document.getElementById("metricBlocked"),
   ownerReportMeta: document.getElementById("ownerReportMeta"),
   ownerThreadName: document.getElementById("ownerThreadName"),
@@ -65,50 +82,20 @@ const elements = {
   ownerProgressList: document.getElementById("ownerProgressList"),
   ownerRiskList: document.getElementById("ownerRiskList"),
   ownerNextActionList: document.getElementById("ownerNextActionList"),
-  ownerProposedTaskList: document.getElementById("ownerProposedTaskList"),
   contextMeta: document.getElementById("contextMeta"),
-  contextSource: document.getElementById("contextSource"),
-  contextSummaryInput: document.getElementById("contextSummaryInput"),
+  contextSummaryText: document.getElementById("contextSummaryText"),
   contextP0List: document.getElementById("contextP0List"),
   contextP1List: document.getElementById("contextP1List"),
   contextP2List: document.getElementById("contextP2List"),
-  contextP0NewInput: document.getElementById("contextP0NewInput"),
-  contextP1NewInput: document.getElementById("contextP1NewInput"),
-  contextP2NewInput: document.getElementById("contextP2NewInput"),
-  saveContextSummaryButton: document.getElementById("saveContextSummaryButton"),
-  refreshReadmeButton: document.getElementById("refreshReadmeButton"),
-  readmeSource: document.getElementById("readmeSource"),
-  latestStatusMeta: document.getElementById("latestStatusMeta"),
-  latestStatusSummary: document.getElementById("latestStatusSummary"),
-  riskList: document.getElementById("riskList"),
-  nextActionList: document.getElementById("nextActionList"),
-  latestCheckMeta: document.getElementById("latestCheckMeta"),
-  checkResults: document.getElementById("checkResults"),
+  activeTaskCountLabel: document.getElementById("activeTaskCountLabel"),
+  activeTaskList: document.getElementById("activeTaskList"),
   taskCountLabel: document.getElementById("taskCountLabel"),
-  taskRows: document.getElementById("taskRows"),
-  taskArchiveCount: document.getElementById("taskArchiveCount"),
-  taskSearchInput: document.getElementById("taskSearchInput"),
-  taskStatusFilter: document.getElementById("taskStatusFilter"),
-  taskArchiveList: document.getElementById("taskArchiveList"),
-  checkHistory: document.getElementById("checkHistory")
+  taskQueueList: document.getElementById("taskQueueList")
 };
 
 elements.refreshButton.addEventListener("click", () => loadDashboard());
 elements.runCheckButton.addEventListener("click", () => runProjectCheck());
 elements.copyOwnerPromptButton.addEventListener("click", () => copyOwnerThreadPrompt());
-elements.saveContextSummaryButton.addEventListener("click", () => saveContextSummary());
-elements.refreshReadmeButton.addEventListener("click", () => refreshContextFromReadme());
-document.querySelectorAll("[data-requirement-add]").forEach((button) => {
-  button.addEventListener("click", () => addRequirement(button.dataset.requirementAdd));
-});
-elements.taskSearchInput.addEventListener("input", () => {
-  state.taskSearch = elements.taskSearchInput.value;
-  renderTaskArchive(getSelectedTaskIndex());
-});
-elements.taskStatusFilter.addEventListener("change", () => {
-  state.taskStatusFilter = elements.taskStatusFilter.value;
-  renderTaskArchive(getSelectedTaskIndex());
-});
 
 loadDashboard();
 
@@ -184,128 +171,6 @@ async function reviewTask(task, action) {
   }
 }
 
-async function saveContextSummary() {
-  const selected = getSelectedProject();
-  if (!selected) {
-    return;
-  }
-
-  await updateProjectContext({
-    summary: elements.contextSummaryInput.value.trim(),
-    note: "Updated context summary from the web dashboard."
-  });
-}
-
-async function addRequirement(priority) {
-  const input = getNewRequirementInput(priority);
-  const value = input.value.trim();
-  if (!value) {
-    return;
-  }
-
-  const requirements = getSelectedRequirements();
-  requirements[priority] = [...requirements[priority], value];
-  input.value = "";
-
-  await updateProjectContext({
-    requirements,
-    note: `Added ${priority.toUpperCase()} requirement from the web dashboard.`
-  });
-}
-
-async function updateRequirement(priority, index, value) {
-  const nextValue = value.trim();
-  if (!nextValue) {
-    return;
-  }
-
-  const requirements = getSelectedRequirements();
-  requirements[priority][index] = nextValue;
-
-  await updateProjectContext({
-    requirements,
-    note: `Updated ${priority.toUpperCase()} requirement from the web dashboard.`
-  });
-}
-
-async function removeRequirement(priority, index) {
-  const requirements = getSelectedRequirements();
-  requirements[priority] = requirements[priority].filter((_, itemIndex) => itemIndex !== index);
-
-  await updateProjectContext({
-    requirements,
-    note: `Removed ${priority.toUpperCase()} requirement from the web dashboard.`
-  });
-}
-
-async function refreshContextFromReadme() {
-  const selected = getSelectedProject();
-  if (!selected) {
-    return;
-  }
-
-  setLoading(true);
-  try {
-    const response = await fetch(
-      `/api/projects/${encodeURIComponent(selected.project.id)}/context/readme`,
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json"
-        },
-        body: JSON.stringify({})
-      }
-    );
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({}));
-      throw new Error(payload.error ?? `HTTP ${response.status}`);
-    }
-
-    await fetch("/api/checks/run", {
-      method: "POST"
-    });
-    await loadDashboard();
-  } catch (error) {
-    elements.generatedAt.textContent = `README 更新失败：${error.message}`;
-  } finally {
-    setLoading(false);
-  }
-}
-
-async function updateProjectContext(payload) {
-  const selected = getSelectedProject();
-  if (!selected) {
-    return;
-  }
-
-  setLoading(true);
-  try {
-    const response = await fetch(
-      `/api/projects/${encodeURIComponent(selected.project.id)}/context`,
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json"
-        },
-        body: JSON.stringify(payload)
-      }
-    );
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({}));
-      throw new Error(payload.error ?? `HTTP ${response.status}`);
-    }
-
-    await fetch("/api/checks/run", {
-      method: "POST"
-    });
-    await loadDashboard();
-  } catch (error) {
-    elements.generatedAt.textContent = `上下文更新失败：${error.message}`;
-  } finally {
-    setLoading(false);
-  }
-}
-
 async function copyOwnerThreadPrompt() {
   const selected = getSelectedProject();
   const prompt = selected?.owner_thread_prompt ?? "";
@@ -358,8 +223,6 @@ function render() {
 
   renderProjects(data.projects);
   renderProject(selected);
-  renderLatestCheck(data.latest_check);
-  renderCheckHistory(data.checks);
 }
 
 function renderProjects(projects) {
@@ -383,11 +246,15 @@ function renderProjects(projects) {
 function createProjectButton(dashboard, variant = "active") {
   const button = document.createElement("button");
   const isActive = dashboard.project.id === state.selectedProjectId;
+  const tasks = getProjectTasks(dashboard);
+  const queued = tasks.filter(isQueuedTask).length;
+  const unissued = tasks.filter(isUnissuedTask).length;
   button.className = `project-item project-item-${variant}${isActive ? " active" : ""}`;
   button.type = "button";
   button.innerHTML = `
     <strong>${escapeHtml(dashboard.project.title)}</strong>
-    <span>${escapeHtml(dashboard.project.id)} | ${escapeHtml(formatLifecycle(dashboard.project.status))} | ${escapeHtml(formatHealth(dashboard.project.health))}</span>
+    <span>${escapeHtml(formatLifecycle(dashboard.project.status))} · ${escapeHtml(formatHealth(dashboard.project.health))}</span>
+    <small>${escapeHtml(queued)} 队列中 · ${escapeHtml(unissued)} 未下发</small>
   `;
   button.addEventListener("click", () => {
     state.selectedProjectId = dashboard.project.id;
@@ -408,37 +275,34 @@ function renderProject(dashboard) {
     elements.projectTitle.textContent = "未选择项目";
     elements.projectGoal.textContent = "创建或导入项目后开始跟踪状态。";
     setHealth("unknown");
-    renderMetrics({});
-    renderOwnerReport(null);
-    renderContext(null);
-    renderStatus(null);
-    renderTasks([]);
-    renderTaskArchive([]);
+    renderMetrics([]);
+    renderOwnerOverview(null);
+    renderContextOverview(null);
+    renderActiveTasks([]);
+    renderTaskQueue([]);
     return;
   }
 
+  const tasks = getProjectTasks(dashboard);
   elements.projectTitle.textContent = dashboard.project.title;
   elements.projectGoal.textContent = dashboard.project.goal;
   setHealth(dashboard.project.health);
-  renderMetrics(dashboard.task_summary);
-  renderOwnerReport(dashboard);
-  renderContext(dashboard);
-  renderStatus(dashboard.latest_status);
-  renderTasks(dashboard.task_hall);
-  renderTaskArchive(dashboard.task_index ?? dashboard.task_hall);
+  renderMetrics(tasks);
+  renderOwnerOverview(dashboard);
+  renderContextOverview(dashboard);
+  renderActiveTasks(tasks);
+  renderTaskQueue(tasks);
 }
 
-function renderMetrics(summary) {
-  const byStatus = summary.by_status ?? {};
-  const byContext = summary.by_context_status ?? {};
-  elements.metricTasks.textContent = summary.total ?? 0;
-  elements.metricReady.textContent = summary.claimable_task_ids?.length ?? byStatus.ready ?? 0;
-  elements.metricDraft.textContent = byStatus.draft ?? 0;
-  elements.metricStale.textContent = byContext.stale ?? 0;
-  elements.metricBlocked.textContent = byStatus.blocked ?? 0;
+function renderMetrics(tasks) {
+  elements.metricTasks.textContent = tasks.length;
+  elements.metricQueued.textContent = tasks.filter(isQueuedTask).length;
+  elements.metricActiveTasks.textContent = tasks.filter(isActiveTask).length;
+  elements.metricUnissued.textContent = tasks.filter(isUnissuedTask).length;
+  elements.metricBlocked.textContent = tasks.filter((task) => task.status === "blocked").length;
 }
 
-function renderOwnerReport(dashboard) {
+function renderOwnerOverview(dashboard) {
   if (!dashboard) {
     elements.ownerReportMeta.textContent = "暂无负责人报告";
     elements.ownerThreadName.textContent = "未绑定负责人 Thread";
@@ -449,7 +313,6 @@ function renderOwnerReport(dashboard) {
     renderList(elements.ownerProgressList, []);
     renderList(elements.ownerRiskList, []);
     renderList(elements.ownerNextActionList, []);
-    renderList(elements.ownerProposedTaskList, []);
     return;
   }
 
@@ -472,438 +335,181 @@ function renderOwnerReport(dashboard) {
     renderList(elements.ownerProgressList, []);
     renderList(elements.ownerRiskList, []);
     renderList(elements.ownerNextActionList, []);
-    renderList(elements.ownerProposedTaskList, []);
     return;
   }
 
   const freshness = ownerStatus.freshness_minutes === null || ownerStatus.freshness_minutes === undefined
     ? ""
-    : ` | ${ownerStatus.freshness_minutes} 分钟前`;
-  elements.ownerReportMeta.textContent = `${report.id} | ${formatDate(report.answered_at)}${freshness}`;
-  elements.ownerReportSummary.textContent = report.summary;
+    : ` · ${ownerStatus.freshness_minutes} 分钟前`;
+  elements.ownerReportMeta.textContent = `${report.id} · ${formatDate(report.answered_at)}${freshness}`;
+  elements.ownerReportSummary.textContent = translateStatusText(report.summary);
   renderList(elements.ownerProgressList, report.progress?.map(translateStatusText));
   renderList(
     elements.ownerRiskList,
     [...(report.risks ?? []), ...(report.blockers ?? [])].map(translateStatusText)
   );
   renderList(elements.ownerNextActionList, report.next_actions?.map(translateStatusText));
-  renderList(
-    elements.ownerProposedTaskList,
-    (report.proposed_tasks ?? []).map((task) => `${task.title}：${task.objective}`)
-  );
 }
 
-function renderStatus(status) {
-  if (!status) {
-    elements.latestStatusMeta.textContent = "暂无状态";
-    elements.latestStatusSummary.textContent = "还没有写入项目状态快照。";
-    renderList(elements.riskList, []);
-    renderList(elements.nextActionList, []);
-    return;
-  }
-
-  elements.latestStatusMeta.textContent = `${status.id} | ${formatDate(status.created_at)}`;
-  elements.latestStatusSummary.textContent = translateStatusText(status.summary);
-  renderList(elements.riskList, status.risks?.map(translateStatusText));
-  renderList(elements.nextActionList, status.next_actions?.map(translateStatusText));
-}
-
-function renderContext(dashboard) {
+function renderContextOverview(dashboard) {
   const context = dashboard?.current_context ?? null;
   const reportedContext = dashboard?.reported_context ?? null;
   const displayContext = reportedContext ?? context;
 
   if (!context || !displayContext) {
     elements.contextMeta.textContent = "暂无上下文";
-    elements.contextSource.textContent = "上下文口径尚未建立。";
-    elements.contextSummaryInput.value = "";
-    elements.readmeSource.textContent = "README 尚未读取。";
-    renderRequirementList("p0", []);
-    renderRequirementList("p1", []);
-    renderRequirementList("p2", []);
+    elements.contextSummaryText.textContent = "上下文口径尚未建立。";
+    renderList(elements.contextP0List, []);
+    renderList(elements.contextP1List, []);
+    renderList(elements.contextP2List, []);
     return;
   }
 
   const requirements = displayContext.requirements ?? {};
   const sourceMeta = displayContext.source === "owner_report"
-    ? `${displayContext.source_label} ${displayContext.source_id} | ${formatDate(displayContext.reported_at)}`
+    ? `${displayContext.source_label} ${displayContext.source_id} · ${formatDate(displayContext.reported_at)}`
     : `${displayContext.source_label} ${displayContext.source_id}`;
-  elements.contextMeta.textContent = `${sourceMeta} | 快照 ${context.id} v${context.version} | 已完成 ${context.completed_task_count} 个任务`;
-  elements.contextSource.textContent = displayContext.source === "owner_report"
-    ? `当前上下文口径来自项目负责人 Thread 上报；README/快照仅作为辅助来源。`
-    : `当前还没有负责人上报上下文，暂用版本化项目上下文快照。`;
-  elements.contextSummaryInput.value = displayContext.summary ?? "";
-  renderReadmeSource(context.source_documents);
-  renderRequirementList("p0", requirements.p0 ?? []);
-  renderRequirementList("p1", requirements.p1 ?? []);
-  renderRequirementList("p2", requirements.p2 ?? []);
+  elements.contextMeta.textContent = `${sourceMeta} · 快照 ${context.id} v${context.version}`;
+  elements.contextSummaryText.textContent = displayContext.summary ?? "暂无上下文摘要。";
+  renderList(elements.contextP0List, requirements.p0 ?? []);
+  renderList(elements.contextP1List, requirements.p1 ?? []);
+  renderList(elements.contextP2List, requirements.p2 ?? []);
 }
 
-function renderReadmeSource(sourceDocuments) {
-  const readme = [...(sourceDocuments ?? [])]
-    .reverse()
-    .find((source) => source.type === "readme");
-  if (!readme) {
-    elements.readmeSource.textContent = "README 尚未读取。";
+function renderActiveTasks(tasks) {
+  const activeTasks = tasks.filter(isActiveTask).sort(compareTasksForQueue);
+  elements.activeTaskCountLabel.textContent = `${activeTasks.length} 个任务`;
+
+  if (activeTasks.length === 0) {
+    elements.activeTaskList.innerHTML = `<div class="empty-state">当前没有正在执行或等待验收的任务。</div>`;
     return;
   }
 
-  const statusText = (readme.status_points ?? []).slice(0, 3).join(" / ");
-  elements.readmeSource.textContent = `README：${readme.path} | ${formatDate(readme.scanned_at)}${statusText ? ` | ${statusText}` : ""}`;
-}
-
-function renderRequirementList(priority, values) {
-  const element = getRequirementListElement(priority);
-  if (!values || values.length === 0) {
-    element.innerHTML = `<div class="empty-state">暂无。</div>`;
-    return;
-  }
-
-  element.replaceChildren(
-    ...values.map((value, index) => {
-      const row = document.createElement("div");
-      row.className = "requirement-item";
-      row.innerHTML = `
-        <input class="requirement-input" type="text" value="${escapeAttribute(value)}" aria-label="${priority.toUpperCase()} 需求">
-        <button class="small-button primary-small" type="button" data-requirement-save>保存</button>
-        <button class="small-button" type="button" data-requirement-remove>删除</button>
-      `;
-      const input = row.querySelector("input");
-      row.querySelector("[data-requirement-save]").addEventListener("click", () =>
-        updateRequirement(priority, index, input.value)
-      );
-      row.querySelector("[data-requirement-remove]").addEventListener("click", () =>
-        removeRequirement(priority, index)
-      );
-      return row;
-    })
+  elements.activeTaskList.replaceChildren(
+    ...activeTasks.map((task) => createTaskCard(task, { compact: false, active: true }))
   );
 }
 
-function renderLatestCheck(check) {
-  if (!check) {
-    elements.latestCheckMeta.textContent = "暂无检查";
-    elements.checkResults.innerHTML = `<div class="empty-state">暂无定时检查记录。</div>`;
+function renderTaskQueue(tasks) {
+  const sortedTasks = [...tasks].sort(compareTasksForQueue);
+  const queuedCount = sortedTasks.filter(isQueuedTask).length;
+  const unissuedCount = sortedTasks.filter(isUnissuedTask).length;
+  elements.taskCountLabel.textContent = `${queuedCount} 个队列中 / ${unissuedCount} 个未下发 / ${sortedTasks.length} 总计`;
+
+  if (sortedTasks.length === 0) {
+    elements.taskQueueList.innerHTML = `<div class="empty-state">当前项目还没有任务。</div>`;
     return;
   }
 
-  elements.latestCheckMeta.textContent = `${check.id} | ${formatDate(check.created_at)}`;
-  if (check.results.length === 0) {
-    elements.checkResults.innerHTML = `<div class="empty-state">这次没有检查任何项目。</div>`;
-    return;
-  }
+  elements.taskQueueList.replaceChildren(
+    ...sortedTasks.map((task) => createTaskCard(task, { compact: false, active: false }))
+  );
+}
 
-  elements.checkResults.replaceChildren(
-    ...check.results.map((result) => {
-      const item = document.createElement("div");
-      item.className = "check-result";
-      item.innerHTML = `
-        <div class="panel-header">
-          <strong>${escapeHtml(result.project_id)}</strong>
-          ${healthPill(result.health)}
+function createTaskCard(task, { active }) {
+  const card = document.createElement("article");
+  const bucketClass = getTaskBucketClass(task);
+  card.className = `task-row task-row-${bucketClass}`;
+  card.innerHTML = `
+    <div class="task-row-header">
+      <div class="task-title-block">
+        <div class="task-title-line">
+          <span class="task-id">${escapeHtml(task.id)}</span>
+          <strong>${escapeHtml(task.title)}</strong>
         </div>
-        <p>${escapeHtml(translateStatusText(result.summary))}</p>
-      `;
-      return item;
-    })
-  );
-}
-
-function renderTasks(tasks) {
-  elements.taskCountLabel.textContent = `${tasks.length} 个待下放/待领取任务`;
-  if (tasks.length === 0) {
-    elements.taskRows.innerHTML = `<tr><td colspan="9" class="empty-state">当前没有需要在任务大厅处理的任务。</td></tr>`;
-    return;
-  }
-
-  elements.taskRows.replaceChildren(
-    ...tasks.map((task) => {
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td data-label="ID">${escapeHtml(task.id)}</td>
-        <td data-label="任务内容">${renderTaskDetail(task)}</td>
-        <td data-label="状态">${statusPill(formatTaskStatus(task.status))}</td>
-        <td data-label="上下文">${statusPill(formatContextStatus(task.context_status))}</td>
-        <td data-label="优先级">${escapeHtml(formatPriority(task.priority))}</td>
-        <td data-label="可领取">${statusPill(task.is_claimable ? "是" : "否")}</td>
-        <td data-label="依赖">${escapeHtml(formatDependencies(task))}</td>
-        <td data-label="Agent">${escapeHtml(task.assigned_agent_id ?? "-")}</td>
-        <td data-label="操作">${renderTaskActions(task)}</td>
-      `;
-      row.querySelectorAll("[data-task-action]").forEach((button) => {
-        button.addEventListener("click", () =>
-          reviewTask(task, button.dataset.taskAction)
-        );
-      });
-      return row;
-    })
-  );
-}
-
-function renderTaskArchive(tasks) {
-  const taskList = tasks ?? [];
-  const filteredTasks = filterTaskArchive(taskList);
-  elements.taskArchiveCount.textContent = `${filteredTasks.length}/${taskList.length} 个任务`;
-
-  if (filteredTasks.length === 0) {
-    elements.taskArchiveList.innerHTML = `<div class="empty-state">没有匹配的任务记录。</div>`;
-    return;
-  }
-
-  elements.taskArchiveList.replaceChildren(
-    ...filteredTasks.map((task) => {
-      const card = document.createElement("article");
-      card.className = "task-card";
-      card.innerHTML = renderTaskArchiveCard(task);
-      return card;
-    })
-  );
-}
-
-function filterTaskArchive(tasks) {
-  const query = state.taskSearch.trim().toLowerCase();
-  const status = state.taskStatusFilter;
-
-  return tasks.filter((task) => {
-    if (status !== "all" && task.status !== status) {
-      return false;
-    }
-
-    if (!query) {
-      return true;
-    }
-
-    return taskSearchText(task).includes(query);
-  });
-}
-
-function taskSearchText(task) {
-  return [
-    task.id,
-    task.title,
-    task.objective,
-    task.status,
-    task.priority,
-    task.assigned_agent_id,
-    task.project_owner_thread_id,
-    task.owner_report_id,
-    task.assigned_agent?.name,
-    task.context?.summary,
-    task.context?.task_brief,
-    task.delivery?.summary,
-    task.delivery?.review?.summary,
-    task.delivery?.review?.reviewed_by,
-    task.delivery?.review?.method,
-    task.delivery?.ai_detection?.summary,
-    ...(task.delivery?.ai_detection?.findings ?? []),
-    ...(task.required_skills ?? []),
-    ...(task.acceptance_criteria ?? []),
-    ...(task.deliverables ?? [])
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
-
-function renderTaskArchiveCard(task) {
-  const agent = task.assigned_agent
-    ? `${task.assigned_agent.name} (${task.assigned_agent.id})`
-    : task.assigned_agent_id ?? "-";
-  const aiDetection =
-    task.delivery?.review?.ai_detection ?? task.delivery?.ai_detection ?? null;
-
-  return `
-    <div class="task-card-header">
-      <div>
-        <div class="task-card-title">${escapeHtml(task.id)} · ${escapeHtml(task.title)}</div>
         <p>${escapeHtml(task.objective || "暂无任务描述。")}</p>
       </div>
-      <div class="task-card-pills">
-        ${statusPill(formatTaskStatus(task.status))}
-        ${statusPill(formatPriority(task.priority))}
+      <div class="task-status-stack">
+        <span class="queue-badge queue-badge-${bucketClass}">${escapeHtml(getTaskBucketLabel(task))}</span>
+        ${statusPill(formatTaskOperationalStatus(task))}
       </div>
     </div>
-    <div class="task-card-meta">
-      <span>Agent：${escapeHtml(agent)}</span>
-      <span>负责人：${escapeHtml(task.project_owner_thread_id ?? "-")}</span>
-      <span>负责人报告：${escapeHtml(task.owner_report_id ?? "-")}</span>
-      <span>上下文：${escapeHtml(task.context_snapshot_id ?? "-")} / ${escapeHtml(formatContextStatus(task.context_status))}</span>
-      <span>创建：${escapeHtml(formatDate(task.created_at))}</span>
-    </div>
-    <div class="task-card-grid">
-      ${renderTaskInfoBlock("执行上下文", [
-        ["任务说明", task.context?.task_brief],
-        ["项目上下文", task.context?.summary],
-        ["准备人", task.context?.prepared_by],
-        ["准备时间", formatDate(task.context?.prepared_at)],
-        ["相关文件", formatOptionalList(task.context?.relevant_files)],
-        ["假设", formatOptionalList(task.context?.assumptions)]
-      ])}
-      ${renderTaskInfoBlock("运行记录", [
-        ["领取时间", formatDate(task.claimed_at)],
-        ["开始时间", formatDate(task.started_at)],
-        ["交付时间", formatDate(task.delivered_at)],
-        ["完成时间", formatDate(task.completed_at)],
-        ["阻塞依赖", formatOptionalList(task.blocked_by)]
-      ])}
-      ${renderTaskDeliveryBlock(task.delivery)}
-      ${renderTaskAiBlock(aiDetection)}
-      ${renderTaskReviewBlock(task)}
-    </div>
+
+    ${renderTaskBrief(task)}
+    ${renderTaskMeta(task)}
+    ${renderTaskDetailGrid(task, active)}
+    ${renderTaskActions(task)}
   `;
+  card.querySelectorAll("[data-task-action]").forEach((button) => {
+    button.addEventListener("click", () => reviewTask(task, button.dataset.taskAction));
+  });
+  return card;
 }
 
-function renderTaskInfoBlock(title, pairs) {
-  const rows = pairs
-    .filter(([, value]) => value && value !== "-")
-    .map(
-      ([label, value]) => `
-        <div class="task-field">
-          <span>${escapeHtml(label)}</span>
-          <strong>${escapeHtml(value)}</strong>
-        </div>
-      `
-    )
-    .join("");
-
-  return `
-    <section class="task-info-block">
-      <h4>${escapeHtml(title)}</h4>
-      ${rows || `<p class="muted">暂无。</p>`}
-    </section>
-  `;
-}
-
-function renderTaskDeliveryBlock(delivery) {
-  if (!delivery) {
-    return renderTaskInfoBlock("交付记录", [["状态", "暂无交付"]]);
-  }
-
-  return renderTaskInfoBlock("交付记录", [
-    ["交付ID", delivery.id],
-    ["交付状态", delivery.status],
-    ["交付摘要", delivery.summary],
-    ["交付时间", formatDate(delivery.created_at)],
-    ["变更文件", formatOptionalList(delivery.files_changed)],
-    ["验证记录", formatOptionalList(delivery.verification)]
-  ]);
-}
-
-function renderTaskAiBlock(aiDetection) {
-  if (!aiDetection) {
-    return renderTaskInfoBlock("AI检测", [["状态", "暂无记录"]]);
-  }
-
-  return renderTaskInfoBlock("AI检测", [
-    ["状态", aiDetection.status],
-    ["摘要", aiDetection.summary],
-    ["发现", formatOptionalList(aiDetection.findings)]
-  ]);
-}
-
-function renderTaskReviewBlock(task) {
-  const review = task.delivery?.review;
-  if (review) {
-    return renderTaskInfoBlock("审核记录", [
-      ["结论", review.decision],
-      ["审核人", review.reviewed_by],
-      ["审核时间", formatDate(review.reviewed_at)],
-      ["审核方式", review.method],
-      ["通过说明", review.summary],
-      ["上下文更新", review.context_update]
-    ]);
-  }
-
-  if (task.status === "rejected") {
-    return renderTaskInfoBlock("审核记录", [
-      ["结论", "rejected"],
-      ["审核人", task.reviewed_by],
-      ["审核时间", formatDate(task.reviewed_at)],
-      ["退回原因", task.rejection_reason]
-    ]);
-  }
-
-  return renderTaskInfoBlock("审核记录", [["状态", task.status === "review" ? "等待审核" : "暂无审核"]]);
-}
-
-function renderTaskDetail(task) {
-  const meta = [
-    `技能：${formatList(task.required_skills)}`,
-    task.project_owner_thread_id ? `负责人：${task.project_owner_thread_id}` : null,
-    task.owner_report_id ? `报告：${task.owner_report_id}` : null,
-    task.created_by ? `创建：${task.created_by}` : null,
-    task.created_at ? `时间：${formatDate(task.created_at)}` : null
-  ].filter(Boolean);
-  const brief = task.task_brief && task.task_brief !== task.objective
-    ? `<p class="task-subtext"><strong>执行说明：</strong>${escapeHtml(task.task_brief)}</p>`
-    : "";
-  const criteria = renderDetailList("验收标准", task.acceptance_criteria);
-  const deliverables = renderDetailList("交付物", task.deliverables);
-
-  return `
-    <div class="task-detail">
-      <strong>${escapeHtml(task.title)}</strong>
-      <p>${escapeHtml(task.objective || "暂无任务描述。")}</p>
-      ${brief}
-      ${criteria}
-      ${deliverables}
-      <div class="task-meta">${meta.map((value) => `<span>${escapeHtml(value)}</span>`).join("")}</div>
-    </div>
-  `;
-}
-
-function renderDetailList(label, values) {
-  if (!values || values.length === 0) {
+function renderTaskBrief(task) {
+  if (!task.task_brief || task.task_brief === task.objective) {
     return "";
   }
 
   return `
-    <div class="task-detail-list">
-      <span>${escapeHtml(label)}：</span>
-      <ul>${values.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul>
+    <div class="task-brief">
+      <span>执行说明</span>
+      <p>${escapeHtml(task.task_brief)}</p>
     </div>
   `;
 }
 
-function renderCheckHistory(checks) {
-  if (!checks.length) {
-    elements.checkHistory.innerHTML = `<div class="empty-state">暂无检查历史。</div>`;
-    return;
-  }
+function renderTaskMeta(task) {
+  const values = [
+    ["优先级", formatPriority(task.priority)],
+    ["上下文", formatContextStatus(task.context_status)],
+    ["Agent", formatAgent(task)],
+    ["依赖", formatDependencies(task)],
+    ["创建", formatDate(task.created_at)],
+    ["更新", formatDate(task.updated_at)]
+  ];
 
-  elements.checkHistory.replaceChildren(
-    ...checks.map((check) => {
-      const item = document.createElement("div");
-      item.className = "check-history-item";
-      item.innerHTML = `
-        <div class="panel-header">
-          <strong>${escapeHtml(check.id)}</strong>
-          <span class="muted">${formatDate(check.created_at)}</span>
+  return `
+    <div class="task-meta-grid">
+      ${values.map(([label, value]) => `
+        <div>
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(value)}</strong>
         </div>
-        <p>${escapeHtml(check.project_count)} 个项目 | ${escapeHtml(check.note || "无备注")}</p>
-      `;
-      return item;
-    })
-  );
+      `).join("")}
+    </div>
+  `;
 }
 
-function renderList(element, values) {
-  if (!values || values.length === 0) {
-    element.innerHTML = `<li>暂无。</li>`;
-    return;
+function renderTaskDetailGrid(task, active) {
+  const blocks = [
+    renderTaskInfoBlock("验收标准", task.acceptance_criteria),
+    renderTaskInfoBlock("交付物", task.deliverables),
+    renderTaskInfoBlock("所需技能", task.required_skills)
+  ];
+
+  if (active) {
+    blocks.push(renderTaskInfoBlock("运行上下文", [
+      task.context?.task_brief,
+      task.context?.summary,
+      task.owner_report_id ? `负责人报告：${task.owner_report_id}` : null,
+      task.project_owner_thread_id ? `项目负责人：${task.project_owner_thread_id}` : null
+    ]));
   }
-  element.replaceChildren(
-    ...values.map((value) => {
-      const item = document.createElement("li");
-      item.textContent = value;
-      return item;
-    })
-  );
+
+  const renderedBlocks = blocks.filter(Boolean).join("");
+  return renderedBlocks ? `<div class="task-detail-grid">${renderedBlocks}</div>` : "";
+}
+
+function renderTaskInfoBlock(title, values) {
+  const normalizedValues = (values ?? []).filter(Boolean);
+  if (normalizedValues.length === 0) {
+    return "";
+  }
+
+  return `
+    <section class="task-info-block">
+      <h4>${escapeHtml(title)}</h4>
+      <ul>
+        ${normalizedValues.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}
+      </ul>
+    </section>
+  `;
 }
 
 function renderTaskActions(task) {
   if (task.status !== "draft") {
-    return `<span class="muted">-</span>`;
+    return "";
   }
 
   return `
@@ -914,21 +520,28 @@ function renderTaskActions(task) {
   `;
 }
 
-function formatList(values) {
-  return values && values.length > 0 ? values.join(", ") : "未指定";
+function renderList(element, values) {
+  const normalizedValues = (values ?? []).filter(Boolean);
+  if (normalizedValues.length === 0) {
+    element.innerHTML = `<li class="empty-list-item">暂无。</li>`;
+    return;
+  }
+
+  element.replaceChildren(
+    ...normalizedValues.map((value) => {
+      const item = document.createElement("li");
+      item.textContent = value;
+      return item;
+    })
+  );
 }
 
-function formatOptionalList(values) {
-  return values && values.length > 0 ? values.join(", ") : null;
+function getProjectTasks(dashboard) {
+  return dashboard?.task_index ?? dashboard?.task_hall ?? [];
 }
 
 function getSelectedProject() {
   return state.data?.projects.find((dashboard) => dashboard.project.id === state.selectedProjectId) ?? null;
-}
-
-function getSelectedTaskIndex() {
-  const selected = getSelectedProject();
-  return selected?.task_index ?? selected?.task_hall ?? [];
 }
 
 function getPreferredProjectId(projects) {
@@ -942,40 +555,79 @@ function isCompletedProject(dashboard) {
     dashboard.project.health === "done";
 }
 
-function getSelectedRequirements() {
-  const selected = getSelectedProject();
-  const requirements =
-    selected?.reported_context?.requirements ?? selected?.current_context?.requirements ?? {};
-  return {
-    p0: [...(requirements.p0 ?? [])],
-    p1: [...(requirements.p1 ?? [])],
-    p2: [...(requirements.p2 ?? [])]
-  };
+function isQueuedTask(task) {
+  return QUEUE_STATUSES.has(task.status) && task.context_status !== "missing";
 }
 
-function getRequirementListElement(priority) {
-  return {
-    p0: elements.contextP0List,
-    p1: elements.contextP1List,
-    p2: elements.contextP2List
-  }[priority];
+function isActiveTask(task) {
+  return ACTIVE_STATUSES.has(task.status);
 }
 
-function getNewRequirementInput(priority) {
-  return {
-    p0: elements.contextP0NewInput,
-    p1: elements.contextP1NewInput,
-    p2: elements.contextP2NewInput
-  }[priority];
+function isUnissuedTask(task) {
+  return task.status === "draft" || task.context_status === "missing";
 }
 
-function setHealth(health) {
-  elements.healthBadge.textContent = formatHealth(health);
-  elements.healthBadge.className = `health-badge health-${health}`;
+function compareTasksForQueue(a, b) {
+  const queueDelta = Number(!isQueuedTask(a)) - Number(!isQueuedTask(b));
+  if (queueDelta !== 0) {
+    return queueDelta;
+  }
+
+  const statusDelta = (TASK_STATUS_ORDER[a.status] ?? 99) - (TASK_STATUS_ORDER[b.status] ?? 99);
+  if (statusDelta !== 0) {
+    return statusDelta;
+  }
+
+  const priorityDelta = (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99);
+  if (priorityDelta !== 0) {
+    return priorityDelta;
+  }
+
+  return getTaskTimestamp(b) - getTaskTimestamp(a);
 }
 
-function statusPill(value) {
-  return `<span class="pill">${escapeHtml(value)}</span>`;
+function getTaskTimestamp(task) {
+  return new Date(task.updated_at ?? task.created_at ?? 0).getTime();
+}
+
+function getTaskBucketLabel(task) {
+  if (isQueuedTask(task)) {
+    return "任务队列";
+  }
+  if (task.status === "done") {
+    return "已完成";
+  }
+  if (task.status === "rejected") {
+    return "已退回";
+  }
+  return "未下发";
+}
+
+function getTaskBucketClass(task) {
+  if (isQueuedTask(task)) {
+    return "queued";
+  }
+  if (task.status === "done") {
+    return "done";
+  }
+  if (task.status === "rejected") {
+    return "rejected";
+  }
+  return "unissued";
+}
+
+function formatTaskOperationalStatus(task) {
+  if (isUnissuedTask(task)) {
+    return "未下发";
+  }
+  return formatTaskStatus(task.status);
+}
+
+function formatAgent(task) {
+  if (task.assigned_agent?.name && task.assigned_agent?.id) {
+    return `${task.assigned_agent.name} (${task.assigned_agent.id})`;
+  }
+  return task.assigned_agent_id ?? "-";
 }
 
 function formatDependencies(task) {
@@ -990,23 +642,25 @@ function formatDependencies(task) {
     .join(", ");
 }
 
-function healthPill(value) {
-  return `<span class="pill health-${escapeHtml(value)}">${escapeHtml(formatHealth(value))}</span>`;
+function setHealth(health) {
+  elements.healthBadge.textContent = formatHealth(health);
+  elements.healthBadge.className = `health-badge health-${health}`;
+}
+
+function statusPill(value) {
+  return `<span class="pill">${escapeHtml(value)}</span>`;
 }
 
 function setLoading(isLoading) {
   state.loading = isLoading;
-  elements.refreshButton.disabled = isLoading;
-  elements.runCheckButton.disabled = isLoading;
-  elements.copyOwnerPromptButton.disabled = isLoading;
-  elements.saveContextSummaryButton.disabled = isLoading;
-  elements.refreshReadmeButton.disabled = isLoading;
-  elements.contextP0NewInput.disabled = isLoading;
-  elements.contextP1NewInput.disabled = isLoading;
-  elements.contextP2NewInput.disabled = isLoading;
-  elements.taskSearchInput.disabled = isLoading;
-  elements.taskStatusFilter.disabled = isLoading;
-  document.querySelectorAll("[data-task-action], [data-requirement-save], [data-requirement-remove], [data-requirement-add]").forEach((button) => {
+  [
+    elements.refreshButton,
+    elements.runCheckButton,
+    elements.copyOwnerPromptButton
+  ].forEach((element) => {
+    element.disabled = isLoading;
+  });
+  document.querySelectorAll("[data-task-action]").forEach((button) => {
     button.disabled = isLoading;
   });
 }
@@ -1071,8 +725,4 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
-}
-
-function escapeAttribute(value) {
-  return escapeHtml(value).replace(/`/g, "&#096;");
 }

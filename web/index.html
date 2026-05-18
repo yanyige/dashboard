@@ -45,195 +45,114 @@
       </aside>
 
       <main class="main-panel">
-        <section class="overview-band">
-          <div>
-            <p class="eyebrow">项目看板</p>
-            <h2 id="projectTitle">未选择项目</h2>
-            <p id="projectGoal" class="summary-text">创建或导入项目后开始跟踪状态。</p>
-          </div>
-          <div id="healthBadge" class="health-badge health-unknown">未知</div>
-        </section>
-
-        <section class="metrics-grid" aria-label="项目指标">
-          <div class="metric">
-            <span class="metric-label">任务总数</span>
-            <strong id="metricTasks">0</strong>
-          </div>
-          <div class="metric">
-            <span class="metric-label">可领取</span>
-            <strong id="metricReady">0</strong>
-          </div>
-          <div class="metric">
-            <span class="metric-label">待审核</span>
-            <strong id="metricDraft">0</strong>
-          </div>
-          <div class="metric">
-            <span class="metric-label">需更新上下文</span>
-            <strong id="metricStale">0</strong>
-          </div>
-          <div class="metric">
-            <span class="metric-label">阻塞</span>
-            <strong id="metricBlocked">0</strong>
-          </div>
-        </section>
-
-        <section class="panel owner-report-panel">
-          <div class="panel-header">
-            <h3>项目负责人</h3>
-            <span id="ownerReportMeta" class="muted">暂无负责人报告</span>
-          </div>
-          <div class="owner-thread-line">
-            <strong id="ownerThreadName">未绑定负责人 Thread</strong>
-            <span id="ownerThreadStatus" class="pill">未绑定</span>
-          </div>
-          <p id="ownerReportSummary" class="status-summary">绑定项目负责人 Thread 后，这里会显示该 Thread 定时上报的项目状态。</p>
-          <div id="ownerPromptActions" class="owner-prompt-actions" hidden>
-            <button id="copyOwnerPromptButton" class="small-button primary-small" type="button">复制接入提示词</button>
-          </div>
-          <div class="split-list owner-report-grid">
+        <section class="project-overview" aria-label="项目看板">
+          <div class="overview-hero">
             <div>
-              <h4>进展</h4>
+              <p class="eyebrow">项目看板</p>
+              <h2 id="projectTitle">未选择项目</h2>
+              <p id="projectGoal" class="summary-text">创建或导入项目后开始跟踪状态。</p>
+            </div>
+            <div id="healthBadge" class="health-badge health-unknown">未知</div>
+          </div>
+
+          <div class="metric-strip" aria-label="项目指标">
+            <div class="metric">
+              <span class="metric-label">任务总数</span>
+              <strong id="metricTasks">0</strong>
+            </div>
+            <div class="metric">
+              <span class="metric-label">任务队列</span>
+              <strong id="metricQueued">0</strong>
+            </div>
+            <div class="metric">
+              <span class="metric-label">正在完成</span>
+              <strong id="metricActiveTasks">0</strong>
+            </div>
+            <div class="metric">
+              <span class="metric-label">未下发</span>
+              <strong id="metricUnissued">0</strong>
+            </div>
+            <div class="metric">
+              <span class="metric-label">阻塞</span>
+              <strong id="metricBlocked">0</strong>
+            </div>
+          </div>
+
+          <div class="overview-grid">
+            <section class="overview-block owner-block">
+              <div class="section-heading">
+                <h3>项目负责人</h3>
+                <span id="ownerThreadStatus" class="pill owner-unassigned">未绑定</span>
+              </div>
+              <div class="owner-thread-line">
+                <strong id="ownerThreadName">未绑定负责人 Thread</strong>
+                <span id="ownerReportMeta" class="muted">暂无负责人报告</span>
+              </div>
+              <p id="ownerReportSummary" class="status-summary">绑定项目负责人 Thread 后，这里会显示该 Thread 定时上报的项目状态。</p>
+              <div id="ownerPromptActions" class="owner-prompt-actions" hidden>
+                <button id="copyOwnerPromptButton" class="small-button primary-small" type="button">复制接入提示词</button>
+              </div>
+            </section>
+
+            <section class="overview-block context-block">
+              <div class="section-heading">
+                <h3>项目上下文</h3>
+                <span id="contextMeta" class="muted">暂无上下文</span>
+              </div>
+              <p id="contextSummaryText" class="status-summary">上下文口径尚未建立。</p>
+              <div class="requirements-grid">
+                <div>
+                  <h4>P0</h4>
+                  <ul id="contextP0List" class="plain-list compact-list"></ul>
+                </div>
+                <div>
+                  <h4>P1</h4>
+                  <ul id="contextP1List" class="plain-list compact-list"></ul>
+                </div>
+                <div>
+                  <h4>P2</h4>
+                  <ul id="contextP2List" class="plain-list compact-list"></ul>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="overview-grid overview-grid-three">
+            <section class="overview-block">
+              <h3>近期进展</h3>
               <ul id="ownerProgressList" class="plain-list"></ul>
-            </div>
-            <div>
-              <h4>风险 / 阻塞</h4>
+            </section>
+            <section class="overview-block">
+              <h3>风险 / 阻塞</h3>
               <ul id="ownerRiskList" class="plain-list"></ul>
-            </div>
-            <div>
-              <h4>下一步</h4>
+            </section>
+            <section class="overview-block">
+              <h3>下一步</h3>
               <ul id="ownerNextActionList" class="plain-list"></ul>
-            </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="panel active-work-panel">
+          <div class="panel-header">
             <div>
-              <h4>任务建议</h4>
-              <ul id="ownerProposedTaskList" class="plain-list"></ul>
+              <p class="eyebrow">Active Work</p>
+              <h3>正在完成的任务</h3>
             </div>
+            <span id="activeTaskCountLabel" class="muted">0 个任务</span>
           </div>
+          <div id="activeTaskList" class="active-task-list"></div>
         </section>
 
-        <section class="panel context-panel">
+        <section class="panel task-queue-panel">
           <div class="panel-header">
-            <h3>项目上下文</h3>
-            <span id="contextMeta" class="muted">暂无上下文</span>
-          </div>
-          <div id="contextSource" class="context-source muted">上下文口径尚未建立。</div>
-          <div class="context-summary-editor">
-            <label class="field-label" for="contextSummaryInput">摘要</label>
-            <textarea id="contextSummaryInput" class="context-textarea" rows="3"></textarea>
-            <div class="context-actions">
-              <button id="saveContextSummaryButton" class="small-button primary-small" type="button">保存摘要</button>
-              <button id="refreshReadmeButton" class="small-button" type="button">读取 README 更新</button>
+            <div>
+              <p class="eyebrow">Task Queue</p>
+              <h3>任务列表</h3>
             </div>
-          </div>
-          <div id="readmeSource" class="readme-source muted">README 尚未读取。</div>
-          <div class="requirements-grid">
-            <div class="requirement-column">
-              <h4>P0</h4>
-              <div id="contextP0List" class="requirement-list"></div>
-              <div class="requirement-add-row">
-                <input id="contextP0NewInput" class="requirement-input" type="text" placeholder="新增 P0 需求">
-                <button class="small-button" type="button" data-requirement-add="p0">添加</button>
-              </div>
-            </div>
-            <div class="requirement-column">
-              <h4>P1</h4>
-              <div id="contextP1List" class="requirement-list"></div>
-              <div class="requirement-add-row">
-                <input id="contextP1NewInput" class="requirement-input" type="text" placeholder="新增 P1 需求">
-                <button class="small-button" type="button" data-requirement-add="p1">添加</button>
-              </div>
-            </div>
-            <div class="requirement-column">
-              <h4>P2</h4>
-              <div id="contextP2List" class="requirement-list"></div>
-              <div class="requirement-add-row">
-                <input id="contextP2NewInput" class="requirement-input" type="text" placeholder="新增 P2 需求">
-                <button class="small-button" type="button" data-requirement-add="p2">添加</button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="status-layout">
-          <div class="panel">
-            <div class="panel-header">
-              <h3>最新状态</h3>
-              <span id="latestStatusMeta" class="muted">暂无状态</span>
-            </div>
-            <p id="latestStatusSummary" class="status-summary">还没有写入项目状态快照。</p>
-            <div class="split-list">
-              <div>
-                <h4>风险</h4>
-                <ul id="riskList" class="plain-list"></ul>
-              </div>
-              <div>
-                <h4>下一步</h4>
-                <ul id="nextActionList" class="plain-list"></ul>
-              </div>
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-header">
-              <h3>最新检查</h3>
-              <span id="latestCheckMeta" class="muted">暂无检查</span>
-            </div>
-            <div id="checkResults" class="check-results"></div>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <h3>任务大厅</h3>
             <span id="taskCountLabel" class="muted">0 个任务</span>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>任务内容</th>
-                  <th>状态</th>
-                  <th>上下文</th>
-                  <th>优先级</th>
-                  <th>可领取</th>
-                  <th>依赖</th>
-                  <th>Agent</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody id="taskRows"></tbody>
-            </table>
-          </div>
-        </section>
-
-        <section class="panel task-archive-panel">
-          <div class="panel-header">
-            <h3>任务检索</h3>
-            <span id="taskArchiveCount" class="muted">0 个任务</span>
-          </div>
-          <div class="task-filter-bar">
-            <input id="taskSearchInput" class="filter-input" type="search" placeholder="搜索任务、Agent、交付、审核信息">
-            <select id="taskStatusFilter" class="filter-select" aria-label="任务状态筛选">
-              <option value="all">全部状态</option>
-              <option value="draft">待审核</option>
-              <option value="ready">待领取</option>
-              <option value="claimed">已领取</option>
-              <option value="in_progress">进行中</option>
-              <option value="review">待验收</option>
-              <option value="done">已完成</option>
-              <option value="rejected">已退回</option>
-              <option value="blocked">阻塞</option>
-            </select>
-          </div>
-          <div id="taskArchiveList" class="task-archive-list"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <h3>最近检查记录</h3>
-            <span class="muted">最近 20 条</span>
-          </div>
-          <div id="checkHistory" class="check-history"></div>
+          <div id="taskQueueList" class="task-queue-list"></div>
         </section>
       </main>
     </div>
