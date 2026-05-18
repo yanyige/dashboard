@@ -56,7 +56,8 @@ const elements = {
   ownerThreadName: document.getElementById("ownerThreadName"),
   ownerThreadStatus: document.getElementById("ownerThreadStatus"),
   ownerReportSummary: document.getElementById("ownerReportSummary"),
-  ownerThreadPrompt: document.getElementById("ownerThreadPrompt"),
+  ownerPromptActions: document.getElementById("ownerPromptActions"),
+  copyOwnerPromptButton: document.getElementById("copyOwnerPromptButton"),
   ownerProgressList: document.getElementById("ownerProgressList"),
   ownerRiskList: document.getElementById("ownerRiskList"),
   ownerNextActionList: document.getElementById("ownerNextActionList"),
@@ -90,6 +91,7 @@ const elements = {
 
 elements.refreshButton.addEventListener("click", () => loadDashboard());
 elements.runCheckButton.addEventListener("click", () => runProjectCheck());
+elements.copyOwnerPromptButton.addEventListener("click", () => copyOwnerThreadPrompt());
 elements.saveContextSummaryButton.addEventListener("click", () => saveContextSummary());
 elements.refreshReadmeButton.addEventListener("click", () => refreshContextFromReadme());
 document.querySelectorAll("[data-requirement-add]").forEach((button) => {
@@ -300,6 +302,51 @@ async function updateProjectContext(payload) {
   }
 }
 
+async function copyOwnerThreadPrompt() {
+  const selected = getSelectedProject();
+  const prompt = selected?.owner_thread_prompt ?? "";
+  if (!prompt) {
+    return;
+  }
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(prompt);
+    } else {
+      fallbackCopyText(prompt);
+    }
+    elements.copyOwnerPromptButton.textContent = "已复制";
+    setTimeout(() => {
+      elements.copyOwnerPromptButton.textContent = "复制接入提示词";
+    }, 1600);
+  } catch (error) {
+    try {
+      fallbackCopyText(prompt);
+      elements.copyOwnerPromptButton.textContent = "已复制";
+      setTimeout(() => {
+        elements.copyOwnerPromptButton.textContent = "复制接入提示词";
+      }, 1600);
+    } catch {
+      elements.generatedAt.textContent = `复制失败：${error.message}`;
+    }
+  }
+}
+
+function fallbackCopyText(value) {
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.append(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) {
+    throw new Error("copy command failed");
+  }
+}
+
 function render() {
   const data = state.data;
   const selected = getSelectedProject();
@@ -373,7 +420,7 @@ function renderOwnerReport(dashboard) {
     elements.ownerThreadStatus.textContent = "未绑定";
     elements.ownerThreadStatus.className = "pill owner-unassigned";
     elements.ownerReportSummary.textContent = "绑定项目负责人 Thread 后，这里会显示该 Thread 定时上报的项目状态。";
-    elements.ownerThreadPrompt.value = "";
+    elements.ownerPromptActions.hidden = true;
     renderList(elements.ownerProgressList, []);
     renderList(elements.ownerRiskList, []);
     renderList(elements.ownerNextActionList, []);
@@ -389,7 +436,8 @@ function renderOwnerReport(dashboard) {
     : "未绑定负责人 Thread";
   elements.ownerThreadStatus.textContent = ownerStatus.label ?? "未绑定";
   elements.ownerThreadStatus.className = `pill owner-${ownerStatus.state ?? "unassigned"}`;
-  elements.ownerThreadPrompt.value = dashboard.owner_thread_prompt ?? "";
+  elements.ownerPromptActions.hidden = Boolean(ownerThread);
+  elements.copyOwnerPromptButton.textContent = "复制接入提示词";
 
   if (!report) {
     elements.ownerReportMeta.textContent = ownerThread ? "等待负责人上报" : "暂无负责人报告";
@@ -914,6 +962,7 @@ function setLoading(isLoading) {
   state.loading = isLoading;
   elements.refreshButton.disabled = isLoading;
   elements.runCheckButton.disabled = isLoading;
+  elements.copyOwnerPromptButton.disabled = isLoading;
   elements.saveContextSummaryButton.disabled = isLoading;
   elements.refreshReadmeButton.disabled = isLoading;
   elements.contextP0NewInput.disabled = isLoading;

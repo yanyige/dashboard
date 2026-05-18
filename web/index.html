@@ -73,9 +73,8 @@
             <span id="ownerThreadStatus" class="pill">未绑定</span>
           </div>
           <p id="ownerReportSummary" class="status-summary">绑定项目负责人 Thread 后，这里会显示该 Thread 定时上报的项目状态。</p>
-          <div class="owner-prompt-block">
-            <label class="field-label" for="ownerThreadPrompt">负责人 Thread 接入提示词</label>
-            <textarea id="ownerThreadPrompt" class="context-textarea owner-prompt-textarea" rows="8" readonly></textarea>
+          <div id="ownerPromptActions" class="owner-prompt-actions" hidden>
+            <button id="copyOwnerPromptButton" class="small-button primary-small" type="button">复制接入提示词</button>
           </div>
           <div class="split-list owner-report-grid">
             <div>

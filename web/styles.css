@@ -359,15 +359,9 @@ h4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.owner-prompt-block {
-  display: grid;
-  gap: 8px;
-}
-
-.owner-prompt-textarea {
-  min-height: 190px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
+.owner-prompt-actions {
+  display: flex;
+  justify-content: flex-start;
 }
 
 .context-panel {
