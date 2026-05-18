@@ -175,6 +175,9 @@ try {
   assert.match(html, /Codex 控制中心/);
   assert.match(html, /项目看板/);
   assert.match(html, /taskFilterControls/);
+  const appJs = await getText(`${baseUrl}/app.js`);
+  assert.match(appJs, /data-task-filter/);
+  assert.match(appJs, /已退回/);
 
   console.log("web smoke passed");
 } finally {

@@ -44,6 +44,7 @@ const TASK_QUEUE_FILTERS = [
   { id: "all", label: "全部" },
   { id: "ready", label: "任务队列" },
   { id: "running", label: "运行中" },
+  { id: "rejected", label: "已退回" },
   { id: "done", label: "已完成" },
   { id: "unissued", label: "未下发" }
 ];
@@ -448,10 +449,11 @@ function renderTaskQueue(tasks) {
   const filterLabel = getTaskQueueFilterLabel(state.taskQueueFilter);
   const queuedCount = sortedTasks.filter(isQueuedTask).length;
   const runningCount = sortedTasks.filter(isActiveTask).length;
+  const rejectedCount = sortedTasks.filter((task) => task.status === "rejected").length;
   const doneCount = sortedTasks.filter((task) => task.status === "done").length;
   const unissuedCount = sortedTasks.filter(isUnissuedTask).length;
   elements.taskCountLabel.textContent =
-    `${filterLabel} ${filteredTasks.length} / ${sortedTasks.length} · ${queuedCount} 任务队列 · ${runningCount} 运行中 · ${doneCount} 已完成 · ${unissuedCount} 未下发`;
+    `${filterLabel} ${filteredTasks.length} / ${sortedTasks.length} · ${queuedCount} 任务队列 · ${runningCount} 运行中 · ${rejectedCount} 已退回 · ${doneCount} 已完成 · ${unissuedCount} 未下发`;
   renderTaskFilterControls(sortedTasks);
 
   if (sortedTasks.length === 0) {
@@ -475,6 +477,7 @@ function renderTaskFilterControls(tasks) {
     all: tasks.length,
     ready: tasks.filter(isQueuedTask).length,
     running: tasks.filter(isActiveTask).length,
+    rejected: tasks.filter((task) => task.status === "rejected").length,
     done: tasks.filter((task) => task.status === "done").length,
     unissued: tasks.filter(isUnissuedTask).length
   };
@@ -917,6 +920,8 @@ function taskMatchesQueueFilter(task, filterId) {
       return isQueuedTask(task);
     case "running":
       return isActiveTask(task);
+    case "rejected":
+      return task.status === "rejected";
     case "done":
       return task.status === "done";
     case "unissued":
