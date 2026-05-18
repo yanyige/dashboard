@@ -9,6 +9,7 @@ const TASK_STATUSES = [
   "in_progress",
   "review",
   "done",
+  "rejected",
   "blocked"
 ];
 const CONTEXT_STATUSES = ["missing", "ready", "stale"];

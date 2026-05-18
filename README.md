@@ -277,6 +277,7 @@ The web dashboard exposes:
 - latest project status snapshot
 - latest scheduled check
 - task hall table
+- draft review actions to approve requirements into ready tasks or reject them
 - recent check history
 - a manual `Run Check` action
 

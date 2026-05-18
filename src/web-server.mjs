@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { ControlCenter } from "./control-center.mjs";
 
 const WEB_ROOT = fileURLToPath(new URL("../web", import.meta.url));
+const WEB_STEWARD_ID = process.env.CCC_STEWARD_ID ?? "codex-thread";
 
 export function createWebServer({ root }) {
   const center = new ControlCenter({ root });
@@ -65,6 +66,51 @@ async function handleApi({ center, request, response, url }) {
     return;
   }
 
+  const approveTaskMatch = url.pathname.match(
+    /^\/api\/projects\/([^/]+)\/tasks\/([^/]+)\/approve$/
+  );
+  if (request.method === "POST" && approveTaskMatch) {
+    const projectId = decodeURIComponent(approveTaskMatch[1]);
+    const taskId = decodeURIComponent(approveTaskMatch[2]);
+    const body = await readJsonBody(request);
+    const task = center.approveTask({
+      project_id: projectId,
+      task_id: taskId,
+      steward_id: body.steward_id ?? WEB_STEWARD_ID,
+      task_brief: body.task_brief,
+      acceptance_criteria: body.acceptance_criteria,
+      deliverables: body.deliverables,
+      assumptions: body.assumptions,
+      relevant_files: body.relevant_files,
+      required_skills: body.required_skills
+    });
+    sendJson(response, 200, {
+      task,
+      dashboard: center.getProjectDashboard(projectId)
+    });
+    return;
+  }
+
+  const rejectTaskMatch = url.pathname.match(
+    /^\/api\/projects\/([^/]+)\/tasks\/([^/]+)\/reject$/
+  );
+  if (request.method === "POST" && rejectTaskMatch) {
+    const projectId = decodeURIComponent(rejectTaskMatch[1]);
+    const taskId = decodeURIComponent(rejectTaskMatch[2]);
+    const body = await readJsonBody(request);
+    const task = center.rejectTask({
+      project_id: projectId,
+      task_id: taskId,
+      reviewed_by: body.reviewed_by ?? WEB_STEWARD_ID,
+      reason: body.reason ?? "Rejected from the web dashboard."
+    });
+    sendJson(response, 200, {
+      task,
+      dashboard: center.getProjectDashboard(projectId)
+    });
+    return;
+  }
+
   const projectMatch = url.pathname.match(/^\/api\/projects\/([^/]+)$/);
   if (request.method === "GET" && projectMatch) {
     const projectId = decodeURIComponent(projectMatch[1]);
@@ -77,6 +123,32 @@ async function handleApi({ center, request, response, url }) {
 
   sendJson(response, 404, {
     error: "Not found"
+  });
+}
+
+function readJsonBody(request) {
+  return new Promise((resolveRead, rejectRead) => {
+    let body = "";
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => {
+      body += chunk;
+      if (body.length > 1024 * 1024) {
+        rejectRead(new Error("Request body is too large."));
+      }
+    });
+    request.on("end", () => {
+      if (!body.trim()) {
+        resolveRead({});
+        return;
+      }
+
+      try {
+        resolveRead(JSON.parse(body));
+      } catch {
+        rejectRead(new Error("Request body must be valid JSON."));
+      }
+    });
+    request.on("error", rejectRead);
   });
 }
 

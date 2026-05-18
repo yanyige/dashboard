@@ -227,6 +227,67 @@ export class ControlCenter {
     return preparedTask;
   }
 
+  approveTask(input) {
+    requireFields(input, ["project_id", "task_id", "steward_id"]);
+
+    const task = this.getTask(input.project_id, input.task_id);
+    if (task.status !== "draft") {
+      throw new Error(`Only draft tasks can be approved: ${task.id}`);
+    }
+
+    return this.prepareTask({
+      project_id: input.project_id,
+      task_id: input.task_id,
+      steward_id: input.steward_id,
+      task_brief: input.task_brief ?? task.objective,
+      relevant_files: input.relevant_files ?? [],
+      assumptions: input.assumptions ?? [
+        "Approved by the project owner from the web dashboard."
+      ],
+      acceptance_criteria: input.acceptance_criteria ?? [
+        `${task.title} is implemented and verified.`
+      ],
+      deliverables: input.deliverables ?? [
+        "Implementation changes",
+        "Verification notes"
+      ],
+      required_skills: input.required_skills ?? task.required_skills
+    });
+  }
+
+  rejectTask(input) {
+    requireFields(input, ["project_id", "task_id", "reviewed_by"]);
+    this.assertProjectAcceptsWork(input.project_id, "review tasks");
+
+    const task = this.getTask(input.project_id, input.task_id);
+    if (task.status !== "draft") {
+      throw new Error(`Only draft tasks can be rejected: ${task.id}`);
+    }
+
+    const rejectedTask = {
+      ...task,
+      status: "rejected",
+      reviewed_by: input.reviewed_by,
+      reviewed_at: now(),
+      rejection_reason: input.reason ?? "Rejected during project owner review.",
+      updated_at: now()
+    };
+
+    this.writeRecord(
+      "task",
+      this.taskPath(input.project_id, input.task_id),
+      rejectedTask
+    );
+    this.appendEvent("task.rejected", {
+      project_id: input.project_id,
+      task_id: input.task_id,
+      reviewed_by: input.reviewed_by,
+      reason: input.reason ?? ""
+    });
+
+    return rejectedTask;
+  }
+
   claimTask(input) {
     requireFields(input, ["project_id", "task_id", "agent_id"]);
 
@@ -688,7 +749,7 @@ export class ControlCenter {
     }
 
     const draftCount = byStatus.draft ?? 0;
-    const missingContextCount = byContext.missing ?? 0;
+    const missingContextCount = taskSummary.needs_context_task_ids.length;
     if (draftCount > 0 || missingContextCount > 0) {
       risks.push(
         `${draftCount} draft task(s) and ${missingContextCount} task(s) with missing context need preparation.`
@@ -1284,7 +1345,8 @@ function summarizeTasks(tasks) {
     stale: [],
     blocked: [],
     in_progress: [],
-    review: []
+    review: [],
+    needs_context: []
   };
 
   for (const task of tasks) {
@@ -1298,6 +1360,9 @@ function summarizeTasks(tasks) {
     if (task.context_status === "stale") {
       highSignal.stale.push(task.id);
     }
+    if (task.status === "draft" && task.context_status === "missing") {
+      highSignal.needs_context.push(task.id);
+    }
   }
 
   return {
@@ -1308,7 +1373,8 @@ function summarizeTasks(tasks) {
     stale_task_ids: highSignal.stale,
     blocked_task_ids: highSignal.blocked,
     in_progress_task_ids: highSignal.in_progress,
-    review_task_ids: highSignal.review
+    review_task_ids: highSignal.review,
+    needs_context_task_ids: highSignal.needs_context
   };
 }
 

@@ -351,7 +351,7 @@ h4 {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 960px;
+  min-width: 1080px;
 }
 
 th,
@@ -379,6 +379,36 @@ tr:last-child td {
 .empty-state {
   color: var(--muted);
   padding: 12px 0;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.small-button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-height: 34px;
+  padding: 7px 10px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.primary-small {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.small-button:disabled {
+  opacity: 0.55;
+  cursor: wait;
 }
 
 @media (max-width: 980px) {

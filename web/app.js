@@ -20,6 +20,7 @@ const TASK_STATUS_LABELS = {
   in_progress: "进行中",
   review: "待验收",
   done: "已完成",
+  rejected: "已退回",
   blocked: "阻塞"
 };
 
@@ -98,6 +99,40 @@ async function runProjectCheck() {
     await loadDashboard();
   } catch (error) {
     elements.generatedAt.textContent = `检查失败：${error.message}`;
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function reviewTask(task, action) {
+  const selected = getSelectedProject();
+  if (!selected) {
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const response = await fetch(
+      `/api/projects/${encodeURIComponent(selected.project.id)}/tasks/${encodeURIComponent(task.id)}/${action}`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({})
+      }
+    );
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? `HTTP ${response.status}`);
+    }
+
+    await fetch("/api/checks/run", {
+      method: "POST"
+    });
+    await loadDashboard();
+  } catch (error) {
+    elements.generatedAt.textContent = `审核失败：${error.message}`;
   } finally {
     setLoading(false);
   }
@@ -210,7 +245,7 @@ function renderLatestCheck(check) {
 function renderTasks(tasks) {
   elements.taskCountLabel.textContent = `${tasks.length} 个任务`;
   if (tasks.length === 0) {
-    elements.taskRows.innerHTML = `<tr><td colspan="8" class="empty-state">这个项目还没有任务。</td></tr>`;
+    elements.taskRows.innerHTML = `<tr><td colspan="9" class="empty-state">这个项目还没有任务。</td></tr>`;
     return;
   }
 
@@ -226,7 +261,13 @@ function renderTasks(tasks) {
         <td data-label="可领取">${statusPill(task.is_claimable ? "是" : "否")}</td>
         <td data-label="依赖">${escapeHtml(formatDependencies(task))}</td>
         <td data-label="Agent">${escapeHtml(task.assigned_agent_id ?? "-")}</td>
+        <td data-label="操作">${renderTaskActions(task)}</td>
       `;
+      row.querySelectorAll("[data-task-action]").forEach((button) => {
+        button.addEventListener("click", () =>
+          reviewTask(task, button.dataset.taskAction)
+        );
+      });
       return row;
     })
   );
@@ -268,6 +309,19 @@ function renderList(element, values) {
   );
 }
 
+function renderTaskActions(task) {
+  if (task.status !== "draft") {
+    return `<span class="muted">-</span>`;
+  }
+
+  return `
+    <div class="action-row">
+      <button class="small-button primary-small" type="button" data-task-action="approve">批准下放</button>
+      <button class="small-button" type="button" data-task-action="reject">退回</button>
+    </div>
+  `;
+}
+
 function getSelectedProject() {
   return state.data?.projects.find((dashboard) => dashboard.project.id === state.selectedProjectId) ?? null;
 }
@@ -301,6 +355,9 @@ function setLoading(isLoading) {
   state.loading = isLoading;
   elements.refreshButton.disabled = isLoading;
   elements.runCheckButton.disabled = isLoading;
+  document.querySelectorAll("[data-task-action]").forEach((button) => {
+    button.disabled = isLoading;
+  });
 }
 
 function formatDate(value) {

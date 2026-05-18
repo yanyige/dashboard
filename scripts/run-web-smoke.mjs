@@ -9,6 +9,12 @@ const root = resolve("data/web-smoke");
 rmSync(root, { recursive: true, force: true });
 
 const center = new ControlCenter({ root });
+center.registerAgent({
+  id: "codex-thread",
+  name: "Codex Thread",
+  role: "context_steward",
+  skills: ["context", "task-design"]
+});
 center.createProject({
   id: "web-demo",
   title: "Web Demo",
@@ -16,11 +22,18 @@ center.createProject({
   context_summary: "Web dashboard smoke test project.",
   created_by: "test"
 });
-center.publishTask({
+const approvedDraft = center.publishTask({
   project_id: "web-demo",
   title: "Visible dashboard task",
   objective: "Show task state in the web dashboard.",
   priority: "high",
+  created_by: "test"
+});
+const rejectedDraft = center.publishTask({
+  project_id: "web-demo",
+  title: "Rejected dashboard task",
+  objective: "Show rejection from the web dashboard.",
+  priority: "medium",
   created_by: "test"
 });
 center.checkProjects({
@@ -45,12 +58,29 @@ try {
   assert.equal(dashboard.latest_check.id, "check-0001");
 
   const project = await getJson(`${baseUrl}/api/projects/web-demo`);
-  assert.equal(project.dashboard.task_summary.total, 1);
+  assert.equal(project.dashboard.task_summary.total, 2);
   assert.equal(project.status_updates.length, 1);
+
+  const approved = await postJson(
+    `${baseUrl}/api/projects/web-demo/tasks/${approvedDraft.id}/approve`
+  );
+  assert.equal(approved.task.status, "ready");
+  assert.equal(approved.task.context_status, "ready");
+  assert.equal(approved.task.context_snapshot_id, "context-0001");
+
+  const rejected = await postJson(
+    `${baseUrl}/api/projects/web-demo/tasks/${rejectedDraft.id}/reject`,
+    {
+      reason: "Not needed for the web smoke."
+    }
+  );
+  assert.equal(rejected.task.status, "rejected");
+  assert.equal(rejected.task.rejection_reason, "Not needed for the web smoke.");
 
   const manualCheck = await postJson(`${baseUrl}/api/checks/run`);
   assert.equal(manualCheck.check.id, "check-0002");
   assert.equal(manualCheck.results.length, 1);
+  assert.equal(manualCheck.results[0].health, "on_track");
 
   const html = await getText(`${baseUrl}/`);
   assert.match(html, /Codex 控制中心/);
@@ -65,17 +95,29 @@ function getJson(url) {
   return requestText("GET", url).then((body) => JSON.parse(body));
 }
 
-function postJson(url) {
-  return requestText("POST", url).then((body) => JSON.parse(body));
+function postJson(url, body = {}) {
+  return requestText("POST", url, body).then((responseBody) => JSON.parse(responseBody));
 }
 
 function getText(url) {
   return requestText("GET", url);
 }
 
-function requestText(method, url) {
+function requestText(method, url, body = null) {
   return new Promise((resolveRequest, rejectRequest) => {
-    const req = request(url, { method }, (res) => {
+    const payload = body ? JSON.stringify(body) : null;
+    const req = request(
+      url,
+      {
+        method,
+        headers: payload
+          ? {
+              "content-type": "application/json",
+              "content-length": Buffer.byteLength(payload)
+            }
+          : undefined
+      },
+      (res) => {
       let body = "";
       res.setEncoding("utf8");
       res.on("data", (chunk) => {
@@ -88,8 +130,12 @@ function requestText(method, url) {
         }
         resolveRequest(body);
       });
-    });
+      }
+    );
     req.on("error", rejectRequest);
+    if (payload) {
+      req.write(payload);
+    }
     req.end();
   });
 }
