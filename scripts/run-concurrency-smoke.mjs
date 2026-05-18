@@ -114,6 +114,7 @@ center.deliverTask({
   summary: "Foundation work completed.",
   verification: ["Concurrency smoke verified foundation delivery."]
 });
+assert.equal(center.getAgent("builder-a").status, "available");
 center.acceptDelivery({
   project_id: "parallel-demo",
   task_id: foundationTask.id,
@@ -151,6 +152,7 @@ center.deliverTask({
   verification: ["Delivery is allowed for already-started concurrent work."]
 });
 assert.equal(center.getTask("parallel-demo", docsTask.id).status, "review");
+assert.equal(center.getAgent("builder-b").status, "available");
 
 console.log("concurrency smoke passed");
 

@@ -324,7 +324,7 @@ Project owner reports can include `--proposed-task` entries. Those entries are s
 
 ### Executor Agent
 
-Claims `ready` tasks that match its skills and writes an acceptance note, execution plan, and expected next report time into the task record. Claiming moves the task queue status from `ready` to `claimed`, so the overall PM can see who accepted the work and how it will proceed. The executor then works from the prepared execution package and proactively runs `deliver-task` after completion. That moves the task to `review` with delivery evidence so the overall PM / Context Steward can accept or send it back. Executor Agents must not run `accept-delivery` for their own work.
+Claims `ready` tasks that match its skills and writes an acceptance note, execution plan, and expected next report time into the task record. Claiming moves the task queue status from `ready` to `claimed`, so the overall PM can see who accepted the work and how it will proceed. The executor then works from the prepared execution package and proactively runs `deliver-task` after completion. That moves the task to `review` with delivery evidence and releases the executor's capacity, so the Agent can claim more work while the overall PM / Context Steward reviews the submitted delivery. Executor Agents must not run `accept-delivery` for their own work.
 
 ## Task States
 
@@ -332,6 +332,6 @@ Claims `ready` tasks that match its skills and writes an acceptance note, execut
 - `ready`: context steward prepared the task
 - `claimed`: an executor reserved the task
 - `in_progress`: executor started work
-- `review`: delivery was submitted
+- `review`: delivery was submitted and no longer occupies executor capacity
 - `done`: delivery was accepted
 - `blocked`: task needs intervention

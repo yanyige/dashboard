@@ -809,10 +809,13 @@ export class ControlCenter {
       this.taskPath(input.project_id, input.task_id),
       reviewedTask
     );
+    this.releaseTaskFromAgent(input.agent_id, `${input.project_id}/${input.task_id}`);
     this.appendEvent("task.delivered", {
       project_id: input.project_id,
       task_id: input.task_id,
-      delivery_id: deliveryId
+      delivery_id: deliveryId,
+      agent_id: input.agent_id,
+      released_agent_capacity: true
     });
 
     return { task: reviewedTask, delivery };

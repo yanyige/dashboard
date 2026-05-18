@@ -190,6 +190,16 @@ const deliveredTask = jsonRun([
 assert.equal(deliveredTask.task.status, "review");
 assert.equal(deliveredTask.delivery.ai_detection.status, "passed");
 
+const agentsAfterDelivery = jsonRun([
+  "list-agents",
+  "--json"
+]);
+const builderAfterDelivery = agentsAfterDelivery.agents.find(
+  (agent) => agent.id === "builder"
+);
+assert.equal(builderAfterDelivery.status, "available");
+assert.deepEqual(builderAfterDelivery.active_task_ids, []);
+
 const acceptedDelivery = jsonRun([
   "accept-delivery",
   "--project",

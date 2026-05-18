@@ -133,6 +133,8 @@ const { task: reviewTask, delivery } = center.deliverTask({
 
 assert.equal(reviewTask.status, "review");
 assert.equal(delivery.status, "submitted");
+assert.equal(center.getAgent(builderAgent.id).status, "available");
+assert.deepEqual(center.getAgent(builderAgent.id).active_task_ids, []);
 
 const accepted = center.acceptDelivery({
   project_id: project.id,
