@@ -481,7 +481,7 @@ function renderOwnerOverview(dashboard) {
     : "未绑定负责人 Thread";
   elements.ownerThreadStatus.textContent = ownerStatus.label ?? "未绑定";
   elements.ownerThreadStatus.className = `pill owner-${ownerStatus.state ?? "unassigned"}`;
-  elements.ownerPromptActions.hidden = Boolean(ownerThread);
+  elements.ownerPromptActions.hidden = false;
   elements.copyOwnerPromptButton.textContent = "复制接入提示词";
 
   if (!report) {

@@ -88,6 +88,11 @@ try {
   assert.equal(project.dashboard.task_hall.length, 2);
   assert.equal(project.status_updates.length, 1);
   assert.match(project.dashboard.owner_thread_prompt, /你现在是/);
+  assert.match(project.dashboard.owner_thread_prompt, /执行 Agent/);
+  assert.match(project.dashboard.owner_thread_prompt, /每 10 分钟运行的自动检查/);
+  assert.match(project.dashboard.owner_thread_prompt, /claim-next-task/);
+  assert.match(project.dashboard.owner_thread_prompt, /deliver-task/);
+  assert.match(project.dashboard.owner_thread_prompt, /不要自己 approve-requirement-proposal/);
   assert.equal(project.dashboard.reported_context.source, "context_snapshot");
   assert.deepEqual(project.dashboard.current_context.requirements, {
     p0: [],
@@ -227,6 +232,7 @@ try {
   assert.match(appJs, /已退回/);
   assert.match(appJs, /thread-inbox/);
   assert.match(appJs, /createRequirementProposal/);
+  assert.match(appJs, /ownerPromptActions\.hidden = false/);
 
   console.log("web smoke passed");
 } finally {
