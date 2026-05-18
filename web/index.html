@@ -68,29 +68,40 @@
             <h3>项目上下文</h3>
             <span id="contextMeta" class="muted">暂无上下文</span>
           </div>
-          <label class="field-label" for="contextSummaryInput">摘要</label>
-          <textarea id="contextSummaryInput" class="context-textarea" rows="3"></textarea>
+          <div class="context-summary-editor">
+            <label class="field-label" for="contextSummaryInput">摘要</label>
+            <textarea id="contextSummaryInput" class="context-textarea" rows="3"></textarea>
+            <div class="context-actions">
+              <button id="saveContextSummaryButton" class="small-button primary-small" type="button">保存摘要</button>
+              <button id="refreshReadmeButton" class="small-button" type="button">读取 README 更新</button>
+            </div>
+          </div>
+          <div id="readmeSource" class="readme-source muted">README 尚未读取。</div>
           <div class="requirements-grid">
             <div class="requirement-column">
               <h4>P0</h4>
-              <ul id="contextP0List" class="plain-list"></ul>
-              <textarea id="contextP0Input" class="context-textarea" rows="4"></textarea>
+              <div id="contextP0List" class="requirement-list"></div>
+              <div class="requirement-add-row">
+                <input id="contextP0NewInput" class="requirement-input" type="text" placeholder="新增 P0 需求">
+                <button class="small-button" type="button" data-requirement-add="p0">添加</button>
+              </div>
             </div>
             <div class="requirement-column">
               <h4>P1</h4>
-              <ul id="contextP1List" class="plain-list"></ul>
-              <textarea id="contextP1Input" class="context-textarea" rows="4"></textarea>
+              <div id="contextP1List" class="requirement-list"></div>
+              <div class="requirement-add-row">
+                <input id="contextP1NewInput" class="requirement-input" type="text" placeholder="新增 P1 需求">
+                <button class="small-button" type="button" data-requirement-add="p1">添加</button>
+              </div>
             </div>
             <div class="requirement-column">
               <h4>P2</h4>
-              <ul id="contextP2List" class="plain-list"></ul>
-              <textarea id="contextP2Input" class="context-textarea" rows="4"></textarea>
+              <div id="contextP2List" class="requirement-list"></div>
+              <div class="requirement-add-row">
+                <input id="contextP2NewInput" class="requirement-input" type="text" placeholder="新增 P2 需求">
+                <button class="small-button" type="button" data-requirement-add="p2">添加</button>
+              </div>
             </div>
-          </div>
-          <div class="context-actions">
-            <button id="saveContextButton" class="primary-button" type="button">
-              <span>保存上下文</span>
-            </button>
           </div>
         </section>
 

@@ -20,6 +20,8 @@ Commands:
   archive-project    Archive a project and remove it from active work routing
   update-project-context
                     Update the versioned project context and P0/P1/P2 requirements
+  refresh-project-context
+                    Refresh project context by reading the local repository README
   update-project-status
                     Write a Context Steward project status snapshot
   show-project-dashboard
@@ -63,6 +65,7 @@ const handlers = {
   "show-project": handleShowProject,
   "archive-project": handleArchiveProject,
   "update-project-context": handleUpdateProjectContext,
+  "refresh-project-context": handleRefreshProjectContext,
   "update-project-status": handleUpdateProjectStatus,
   "show-project-dashboard": handleShowProjectDashboard,
   "list-project-status": handleListProjectStatus,
@@ -198,6 +201,15 @@ function handleUpdateProjectContext(center, flags) {
     summary: stringFlag(flags, "summary", "context-summary"),
     requirements: requirementsFromFlags(flags),
     note: stringFlag(flags, "note") ?? "CLI project context update."
+  });
+}
+
+function handleRefreshProjectContext(center, flags) {
+  return center.refreshProjectContextFromReadme({
+    project_id: projectFlag(flags),
+    updated_by: stringFlag(flags, "updated-by") ?? "codex-thread",
+    readme_path: stringFlag(flags, "readme", "readme-path"),
+    note: stringFlag(flags, "note") ?? "CLI README context refresh."
   });
 }
 
@@ -436,6 +448,11 @@ function printResult(command, result, flags) {
     case "update-project-context":
       console.log(
         `updated context ${result.context.id}; stale tasks=${result.stale_tasks.length}`
+      );
+      break;
+    case "refresh-project-context":
+      console.log(
+        `refreshed context ${result.context.id} from ${result.readme.path}; stale tasks=${result.stale_tasks.length}`
       );
       break;
     case "update-project-status":

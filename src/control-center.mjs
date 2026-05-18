@@ -6,7 +6,7 @@ import {
   rmSync,
   writeFileSync
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { validateRecord } from "./validation.mjs";
 
 export class ControlCenter {
@@ -175,6 +175,83 @@ export class ControlCenter {
     return {
       project: updatedProject,
       context: nextContext,
+      stale_tasks: staleTasks
+    };
+  }
+
+  refreshProjectContextFromReadme(input) {
+    requireFields(input, ["project_id", "updated_by"]);
+    this.assertProjectAcceptsWork(input.project_id, "refresh context from README");
+
+    const project = this.getProject(input.project_id);
+    const previousContext = this.getContext(
+      input.project_id,
+      project.current_context_snapshot_id
+    );
+    const readme = this.readProjectReadme(input.project_id, input.readme_path);
+    const extracted = extractReadmeContext(readme.content, previousContext);
+    const nextContextId = this.nextId(this.contextsDir(input.project_id), "context");
+    const nowValue = now();
+    const sourceDocument = {
+      type: "readme",
+      path: readme.path,
+      scanned_at: nowValue,
+      title: extracted.title,
+      summary: extracted.summary,
+      headings: extracted.headings.slice(0, 16),
+      status_points: extracted.status_points.slice(0, 12)
+    };
+    const nextContext = {
+      ...deepClone(previousContext),
+      id: nextContextId,
+      version: previousContext.version + 1,
+      based_on: previousContext.id,
+      summary: extracted.summary || previousContext.summary,
+      requirements: extracted.has_requirements
+        ? normalizeRequirements(extracted.requirements)
+        : normalizeRequirements(previousContext.requirements),
+      source_documents: [
+        ...(previousContext.source_documents ?? []).filter(
+          (source) => source.path !== readme.path
+        ),
+        sourceDocument
+      ].slice(-8),
+      change_log: [
+        ...previousContext.change_log,
+        {
+          at: nowValue,
+          by: input.updated_by,
+          note:
+            input.note ??
+            `Refreshed project context from README: ${readme.path}`
+        }
+      ],
+      updated_at: nowValue
+    };
+    const updatedProject = {
+      ...project,
+      current_context_snapshot_id: nextContext.id,
+      updated_at: nowValue
+    };
+
+    this.writeRecord("context", this.contextPath(input.project_id, nextContext.id), nextContext);
+    this.writeRecord("project", this.projectPath(input.project_id), updatedProject);
+    const staleTasks = this.markStalePreparedTasks(
+      input.project_id,
+      nextContext.id,
+      null
+    );
+    this.appendEvent("project.context_refreshed_from_readme", {
+      project_id: input.project_id,
+      context_snapshot_id: nextContext.id,
+      readme_path: readme.path,
+      stale_task_ids: staleTasks.map((task) => task.id)
+    });
+
+    return {
+      project: updatedProject,
+      context: nextContext,
+      readme: sourceDocument,
       stale_tasks: staleTasks
     };
   }
@@ -888,6 +965,27 @@ export class ControlCenter {
     return this.readJson(this.contextPath(projectId, contextId));
   }
 
+  readProjectReadme(projectId, readmePath = undefined) {
+    const project = this.getProject(projectId);
+    const context = this.getContext(projectId, project.current_context_snapshot_id);
+    const repoPath = context.repo_path;
+    if (!repoPath) {
+      throw new Error(`Project has no local repo_path for README refresh: ${projectId}`);
+    }
+
+    const resolvedPath = readmePath
+      ? resolveReadmePath(repoPath, readmePath)
+      : findReadmePath(repoPath);
+    if (!resolvedPath) {
+      throw new Error(`No README file found in ${repoPath}`);
+    }
+
+    return {
+      path: resolvedPath,
+      content: readFileSync(resolvedPath, "utf8")
+    };
+  }
+
   getTask(projectId, taskId) {
     return this.readJson(this.taskPath(projectId, taskId));
   }
@@ -1015,6 +1113,7 @@ export class ControlCenter {
         constraints: context.constraints ?? [],
         roadmap: context.roadmap ?? [],
         repo_path: context.repo_path ?? null,
+        source_documents: context.source_documents ?? [],
         completed_task_count: context.completed_tasks.length
       },
       task_summary: taskSummary,
@@ -1467,6 +1566,255 @@ function normalizeRequirements(requirements = {}) {
     p1: uniqueStrings(requirements?.p1 ?? []),
     p2: uniqueStrings(requirements?.p2 ?? [])
   };
+}
+
+function resolveReadmePath(repoPath, readmePath) {
+  const resolvedPath = isAbsolute(readmePath)
+    ? readmePath
+    : resolve(repoPath, readmePath);
+  if (!existsSync(resolvedPath)) {
+    throw new Error(`README file does not exist: ${resolvedPath}`);
+  }
+  return resolvedPath;
+}
+
+function findReadmePath(repoPath) {
+  const preferred = [
+    "README.md",
+    "README.MD",
+    "readme.md",
+    "README_CN.md",
+    "README.zh-CN.md",
+    "README.txt"
+  ]
+    .map((fileName) => join(repoPath, fileName))
+    .find((path) => existsSync(path));
+  if (preferred) {
+    return preferred;
+  }
+
+  if (!existsSync(repoPath)) {
+    return null;
+  }
+
+  const readmeFile = readdirSync(repoPath)
+    .filter((fileName) => /^readme/i.test(fileName))
+    .sort()[0];
+  return readmeFile ? join(repoPath, readmeFile) : null;
+}
+
+function extractReadmeContext(content, previousContext) {
+  const lines = content.split(/\r?\n/);
+  const title = extractReadmeTitle(lines);
+  const headings = extractHeadings(lines);
+  const paragraphs = extractIntroParagraphs(lines);
+  const statusPoints = uniqueStrings([
+    ...extractExplicitStatusLines(lines),
+    ...extractStatusPoints(lines)
+  ]);
+  const priorityRequirements = extractPriorityRequirements(lines);
+  const summaryStatusPoints = prioritizeReadmeStatusPoints(statusPoints);
+  const hasRequirements =
+    priorityRequirements.p0.length +
+      priorityRequirements.p1.length +
+      priorityRequirements.p2.length >
+    0;
+  const summaryParts = [
+    title ? `${title}.` : "",
+    paragraphs.join(" "),
+    summaryStatusPoints.length > 0
+      ? `README 当前状态：${summaryStatusPoints.slice(0, 5).join("；")}。`
+      : ""
+  ].filter(Boolean);
+
+  return {
+    title,
+    headings,
+    status_points: statusPoints,
+    requirements: hasRequirements
+      ? priorityRequirements
+      : normalizeRequirements(previousContext.requirements),
+    has_requirements: hasRequirements,
+    summary: compactWhitespace(summaryParts.join(" ")).slice(0, 1200)
+  };
+}
+
+function extractReadmeTitle(lines) {
+  const heading = lines.find((line) => /^#\s+/.test(line.trim()));
+  return heading ? heading.replace(/^#\s+/, "").trim() : "";
+}
+
+function extractHeadings(lines) {
+  return uniqueStrings(
+    lines
+      .map((line) => line.trim().match(/^#{1,6}\s+(.+)$/)?.[1]?.trim())
+      .filter(Boolean)
+  );
+}
+
+function extractIntroParagraphs(lines) {
+  const paragraphs = [];
+  let current = [];
+  let inFence = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (line.startsWith("```")) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence || !line || line.startsWith("#") || isListLine(line)) {
+      if (current.length > 0) {
+        paragraphs.push(current.join(" "));
+        current = [];
+      }
+      if (paragraphs.length >= 2) {
+        break;
+      }
+      continue;
+    }
+    current.push(line);
+  }
+
+  if (current.length > 0 && paragraphs.length < 2) {
+    paragraphs.push(current.join(" "));
+  }
+
+  return paragraphs.map(compactWhitespace).filter(Boolean).slice(0, 2);
+}
+
+function extractStatusPoints(lines) {
+  const points = [];
+  let active = false;
+  let inFence = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (line.startsWith("```")) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) {
+      continue;
+    }
+
+    const heading = line.match(/^#{2,6}\s+(.+)$/)?.[1]?.trim() ?? "";
+    if (heading) {
+      active = /current|status|workflow|capabilit|progress|ecs|gpu|comfyui|credit|当前|状态|进度|能力|流程|资产|任务|额度/i.test(heading);
+      if (active) {
+        points.push(heading);
+      }
+      continue;
+    }
+
+    if (!active) {
+      continue;
+    }
+
+    const point = cleanReadmeListLine(line);
+    if (point) {
+      points.push(point);
+    }
+  }
+
+  return uniqueStrings(points)
+    .filter((point) => point.length >= 4)
+    .slice(0, 80);
+}
+
+function extractExplicitStatusLines(lines) {
+  const points = [];
+  let inFence = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (line.startsWith("```")) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) {
+      continue;
+    }
+
+    const point = cleanReadmeListLine(line);
+    if (/current|currently|now|latest|当前|现在|最新/i.test(point)) {
+      points.push(point);
+    }
+  }
+
+  return uniqueStrings(points).filter((point) => point.length >= 4);
+}
+
+function prioritizeReadmeStatusPoints(points) {
+  const priorityPattern = /current|currently|supports|exposes|separates|stored|generated|preheat|worker|comfyui|musetalk|credits|ecs|gpu|workflow|当前|现在|支持|能力|生成|预热|任务|资产|额度|流程/i;
+  const noisyPattern = /development workflow|commit messages|conventional commits|do not commit|meaningful change|ignored by git/i;
+  const priority = points.filter(
+    (point) => priorityPattern.test(point) && !noisyPattern.test(point)
+  );
+  const fallback = points.filter((point) => !noisyPattern.test(point));
+  return uniqueStrings([...priority, ...fallback]);
+}
+
+function extractPriorityRequirements(lines) {
+  const requirements = {
+    p0: [],
+    p1: [],
+    p2: []
+  };
+  let currentPriority = null;
+  let inFence = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (line.startsWith("```")) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) {
+      continue;
+    }
+
+    const headingPriority = line.match(/^#{1,6}\s*(P[012])\b/i)?.[1]?.toLowerCase();
+    if (headingPriority) {
+      currentPriority = headingPriority;
+      continue;
+    }
+    if (/^#{1,6}\s+/.test(line)) {
+      currentPriority = null;
+      continue;
+    }
+
+    const inlinePriority = line.match(/^(?:[-*]\s*)?(P[012])\s*[:：-]\s*(.+)$/i);
+    if (inlinePriority) {
+      requirements[inlinePriority[1].toLowerCase()].push(inlinePriority[2].trim());
+      continue;
+    }
+
+    if (currentPriority) {
+      const requirement = cleanReadmeListLine(line);
+      if (requirement) {
+        requirements[currentPriority].push(requirement);
+      }
+    }
+  }
+
+  return normalizeRequirements(requirements);
+}
+
+function isListLine(line) {
+  return /^[-*]\s+/.test(line) || /^\d+[.)]\s+/.test(line);
+}
+
+function cleanReadmeListLine(line) {
+  return line
+    .replace(/^[-*]\s+/, "")
+    .replace(/^\d+[.)]\s+/, "")
+    .replace(/^\[[ xX]\]\s+/, "")
+    .trim();
+}
+
+function compactWhitespace(value) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
 }
 
 function normalizeAiDetection(aiDetection = undefined) {

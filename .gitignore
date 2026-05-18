@@ -4,9 +4,11 @@ data/local/
 data/workspace/
 data/demo/
 data/cli-smoke/
+data/cli-smoke-repo/
 data/stale-smoke/
 data/concurrency-smoke/
 data/status-smoke/
 data/check-smoke/
 data/import-smoke/
 data/web-smoke/
+data/web-smoke-repo/

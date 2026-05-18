@@ -1,12 +1,36 @@
 import assert from "node:assert/strict";
 import { request } from "node:http";
-import { rmSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { ControlCenter } from "../src/control-center.mjs";
 import { createWebServer } from "../src/web-server.mjs";
 
 const root = resolve("data/web-smoke");
+const repoRoot = resolve("data/web-smoke-repo");
 rmSync(root, { recursive: true, force: true });
+rmSync(repoRoot, { recursive: true, force: true });
+mkdirSync(repoRoot, { recursive: true });
+writeFileSync(
+  resolve(repoRoot, "README.md"),
+  [
+    "# Web Smoke Project",
+    "",
+    "The README describes the latest web smoke state.",
+    "",
+    "## P0",
+    "",
+    "- Keep project context editable per requirement.",
+    "",
+    "## P1",
+    "",
+    "- Refresh project context from README.",
+    "",
+    "## Current Status",
+    "",
+    "- The dashboard can read README state.",
+    ""
+  ].join("\n")
+);
 
 const center = new ControlCenter({ root });
 center.registerAgent({
@@ -19,6 +43,7 @@ center.createProject({
   id: "web-demo",
   title: "Web Demo",
   goal: "Verify the web dashboard can read project status.",
+  repo_path: repoRoot,
   context_summary: "Web dashboard smoke test project.",
   created_by: "test"
 });
@@ -82,12 +107,20 @@ try {
     "Review draft work before execution."
   ]);
 
+  const readmeRefresh = await postJson(`${baseUrl}/api/projects/web-demo/context/readme`);
+  assert.equal(readmeRefresh.context.id, "context-0003");
+  assert.match(readmeRefresh.context.summary, /Web Smoke Project/);
+  assert.deepEqual(readmeRefresh.context.requirements.p0, [
+    "Keep project context editable per requirement."
+  ]);
+  assert.equal(readmeRefresh.context.source_documents[0].type, "readme");
+
   const approved = await postJson(
     `${baseUrl}/api/projects/web-demo/tasks/${approvedDraft.id}/approve`
   );
   assert.equal(approved.task.status, "ready");
   assert.equal(approved.task.context_status, "ready");
-  assert.equal(approved.task.context_snapshot_id, "context-0002");
+  assert.equal(approved.task.context_snapshot_id, "context-0003");
 
   const rejected = await postJson(
     `${baseUrl}/api/projects/web-demo/tasks/${rejectedDraft.id}/reject`,

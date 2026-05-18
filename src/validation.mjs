@@ -105,6 +105,7 @@ function validateContext(value, errors) {
   arrayOfStrings(value, "constraints", errors);
   arrayOfStrings(value, "roadmap", errors);
   optionalRequirements(value, "requirements", errors);
+  optionalArrayValue(value, "source_documents", errors);
   arrayValue(value, "decisions", errors);
   arrayValue(value, "completed_tasks", errors);
   arrayValue(value, "change_log", errors);
@@ -215,6 +216,14 @@ function arrayValue(value, field, errors) {
   if (!Array.isArray(value?.[field])) {
     errors.push(`${field} must be an array`);
   }
+}
+
+function optionalArrayValue(value, field, errors) {
+  if (value?.[field] === undefined) {
+    return;
+  }
+
+  arrayValue(value, field, errors);
 }
 
 function arrayOfStrings(value, field, errors) {

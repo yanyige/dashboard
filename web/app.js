@@ -57,10 +57,12 @@ const elements = {
   contextP0List: document.getElementById("contextP0List"),
   contextP1List: document.getElementById("contextP1List"),
   contextP2List: document.getElementById("contextP2List"),
-  contextP0Input: document.getElementById("contextP0Input"),
-  contextP1Input: document.getElementById("contextP1Input"),
-  contextP2Input: document.getElementById("contextP2Input"),
-  saveContextButton: document.getElementById("saveContextButton"),
+  contextP0NewInput: document.getElementById("contextP0NewInput"),
+  contextP1NewInput: document.getElementById("contextP1NewInput"),
+  contextP2NewInput: document.getElementById("contextP2NewInput"),
+  saveContextSummaryButton: document.getElementById("saveContextSummaryButton"),
+  refreshReadmeButton: document.getElementById("refreshReadmeButton"),
+  readmeSource: document.getElementById("readmeSource"),
   latestStatusMeta: document.getElementById("latestStatusMeta"),
   latestStatusSummary: document.getElementById("latestStatusSummary"),
   riskList: document.getElementById("riskList"),
@@ -78,7 +80,11 @@ const elements = {
 
 elements.refreshButton.addEventListener("click", () => loadDashboard());
 elements.runCheckButton.addEventListener("click", () => runProjectCheck());
-elements.saveContextButton.addEventListener("click", () => saveProjectContext());
+elements.saveContextSummaryButton.addEventListener("click", () => saveContextSummary());
+elements.refreshReadmeButton.addEventListener("click", () => refreshContextFromReadme());
+document.querySelectorAll("[data-requirement-add]").forEach((button) => {
+  button.addEventListener("click", () => addRequirement(button.dataset.requirementAdd));
+});
 elements.taskSearchInput.addEventListener("input", () => {
   state.taskSearch = elements.taskSearchInput.value;
   renderTaskArchive(getSelectedTaskIndex());
@@ -162,7 +168,95 @@ async function reviewTask(task, action) {
   }
 }
 
-async function saveProjectContext() {
+async function saveContextSummary() {
+  const selected = getSelectedProject();
+  if (!selected) {
+    return;
+  }
+
+  await updateProjectContext({
+    summary: elements.contextSummaryInput.value.trim(),
+    note: "Updated context summary from the web dashboard."
+  });
+}
+
+async function addRequirement(priority) {
+  const input = getNewRequirementInput(priority);
+  const value = input.value.trim();
+  if (!value) {
+    return;
+  }
+
+  const requirements = getSelectedRequirements();
+  requirements[priority] = [...requirements[priority], value];
+  input.value = "";
+
+  await updateProjectContext({
+    requirements,
+    note: `Added ${priority.toUpperCase()} requirement from the web dashboard.`
+  });
+}
+
+async function updateRequirement(priority, index, value) {
+  const nextValue = value.trim();
+  if (!nextValue) {
+    return;
+  }
+
+  const requirements = getSelectedRequirements();
+  requirements[priority][index] = nextValue;
+
+  await updateProjectContext({
+    requirements,
+    note: `Updated ${priority.toUpperCase()} requirement from the web dashboard.`
+  });
+}
+
+async function removeRequirement(priority, index) {
+  const requirements = getSelectedRequirements();
+  requirements[priority] = requirements[priority].filter((_, itemIndex) => itemIndex !== index);
+
+  await updateProjectContext({
+    requirements,
+    note: `Removed ${priority.toUpperCase()} requirement from the web dashboard.`
+  });
+}
+
+async function refreshContextFromReadme() {
+  const selected = getSelectedProject();
+  if (!selected) {
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const response = await fetch(
+      `/api/projects/${encodeURIComponent(selected.project.id)}/context/readme`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({})
+      }
+    );
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? `HTTP ${response.status}`);
+    }
+
+    await fetch("/api/checks/run", {
+      method: "POST"
+    });
+    await loadDashboard();
+  } catch (error) {
+    elements.generatedAt.textContent = `README 更新失败：${error.message}`;
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function updateProjectContext(payload) {
   const selected = getSelectedProject();
   if (!selected) {
     return;
@@ -177,14 +271,7 @@ async function saveProjectContext() {
         headers: {
           "content-type": "application/json"
         },
-        body: JSON.stringify({
-          summary: elements.contextSummaryInput.value.trim(),
-          requirements: {
-            p0: parseTextareaList(elements.contextP0Input.value),
-            p1: parseTextareaList(elements.contextP1Input.value),
-            p2: parseTextareaList(elements.contextP2Input.value)
-          }
-        })
+        body: JSON.stringify(payload)
       }
     );
     if (!response.ok) {
@@ -197,7 +284,7 @@ async function saveProjectContext() {
     });
     await loadDashboard();
   } catch (error) {
-    elements.generatedAt.textContent = `上下文保存失败：${error.message}`;
+    elements.generatedAt.textContent = `上下文更新失败：${error.message}`;
   } finally {
     setLoading(false);
   }
@@ -286,24 +373,61 @@ function renderContext(context) {
   if (!context) {
     elements.contextMeta.textContent = "暂无上下文";
     elements.contextSummaryInput.value = "";
-    renderList(elements.contextP0List, []);
-    renderList(elements.contextP1List, []);
-    renderList(elements.contextP2List, []);
-    elements.contextP0Input.value = "";
-    elements.contextP1Input.value = "";
-    elements.contextP2Input.value = "";
+    elements.readmeSource.textContent = "README 尚未读取。";
+    renderRequirementList("p0", []);
+    renderRequirementList("p1", []);
+    renderRequirementList("p2", []);
     return;
   }
 
   const requirements = context.requirements ?? {};
   elements.contextMeta.textContent = `${context.id} | v${context.version} | 已完成 ${context.completed_task_count} 个任务`;
   elements.contextSummaryInput.value = context.summary ?? "";
-  renderList(elements.contextP0List, requirements.p0);
-  renderList(elements.contextP1List, requirements.p1);
-  renderList(elements.contextP2List, requirements.p2);
-  elements.contextP0Input.value = formatTextareaList(requirements.p0);
-  elements.contextP1Input.value = formatTextareaList(requirements.p1);
-  elements.contextP2Input.value = formatTextareaList(requirements.p2);
+  renderReadmeSource(context.source_documents);
+  renderRequirementList("p0", requirements.p0 ?? []);
+  renderRequirementList("p1", requirements.p1 ?? []);
+  renderRequirementList("p2", requirements.p2 ?? []);
+}
+
+function renderReadmeSource(sourceDocuments) {
+  const readme = [...(sourceDocuments ?? [])]
+    .reverse()
+    .find((source) => source.type === "readme");
+  if (!readme) {
+    elements.readmeSource.textContent = "README 尚未读取。";
+    return;
+  }
+
+  const statusText = (readme.status_points ?? []).slice(0, 3).join(" / ");
+  elements.readmeSource.textContent = `README：${readme.path} | ${formatDate(readme.scanned_at)}${statusText ? ` | ${statusText}` : ""}`;
+}
+
+function renderRequirementList(priority, values) {
+  const element = getRequirementListElement(priority);
+  if (!values || values.length === 0) {
+    element.innerHTML = `<div class="empty-state">暂无。</div>`;
+    return;
+  }
+
+  element.replaceChildren(
+    ...values.map((value, index) => {
+      const row = document.createElement("div");
+      row.className = "requirement-item";
+      row.innerHTML = `
+        <input class="requirement-input" type="text" value="${escapeAttribute(value)}" aria-label="${priority.toUpperCase()} 需求">
+        <button class="small-button primary-small" type="button" data-requirement-save>保存</button>
+        <button class="small-button" type="button" data-requirement-remove>删除</button>
+      `;
+      const input = row.querySelector("input");
+      row.querySelector("[data-requirement-save]").addEventListener("click", () =>
+        updateRequirement(priority, index, input.value)
+      );
+      row.querySelector("[data-requirement-remove]").addEventListener("click", () =>
+        removeRequirement(priority, index)
+      );
+      return row;
+    })
+  );
 }
 
 function renderLatestCheck(check) {
@@ -651,6 +775,31 @@ function getSelectedTaskIndex() {
   return selected?.task_index ?? selected?.task_hall ?? [];
 }
 
+function getSelectedRequirements() {
+  const requirements = getSelectedProject()?.current_context?.requirements ?? {};
+  return {
+    p0: [...(requirements.p0 ?? [])],
+    p1: [...(requirements.p1 ?? [])],
+    p2: [...(requirements.p2 ?? [])]
+  };
+}
+
+function getRequirementListElement(priority) {
+  return {
+    p0: elements.contextP0List,
+    p1: elements.contextP1List,
+    p2: elements.contextP2List
+  }[priority];
+}
+
+function getNewRequirementInput(priority) {
+  return {
+    p0: elements.contextP0NewInput,
+    p1: elements.contextP1NewInput,
+    p2: elements.contextP2NewInput
+  }[priority];
+}
+
 function setHealth(health) {
   elements.healthBadge.textContent = formatHealth(health);
   elements.healthBadge.className = `health-badge health-${health}`;
@@ -680,23 +829,16 @@ function setLoading(isLoading) {
   state.loading = isLoading;
   elements.refreshButton.disabled = isLoading;
   elements.runCheckButton.disabled = isLoading;
-  elements.saveContextButton.disabled = isLoading;
+  elements.saveContextSummaryButton.disabled = isLoading;
+  elements.refreshReadmeButton.disabled = isLoading;
+  elements.contextP0NewInput.disabled = isLoading;
+  elements.contextP1NewInput.disabled = isLoading;
+  elements.contextP2NewInput.disabled = isLoading;
   elements.taskSearchInput.disabled = isLoading;
   elements.taskStatusFilter.disabled = isLoading;
-  document.querySelectorAll("[data-task-action]").forEach((button) => {
+  document.querySelectorAll("[data-task-action], [data-requirement-save], [data-requirement-remove], [data-requirement-add]").forEach((button) => {
     button.disabled = isLoading;
   });
-}
-
-function parseTextareaList(value) {
-  return value
-    .split("\n")
-    .map((line) => line.replace(/^[-*]\s+/, "").trim())
-    .filter(Boolean);
-}
-
-function formatTextareaList(values) {
-  return (values ?? []).join("\n");
 }
 
 function formatDate(value) {
@@ -750,4 +892,8 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value).replace(/`/g, "&#096;");
 }

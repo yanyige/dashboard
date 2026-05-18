@@ -84,6 +84,23 @@ async function handleApi({ center, request, response, url }) {
     return;
   }
 
+  const refreshReadmeMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/context\/readme$/);
+  if (request.method === "POST" && refreshReadmeMatch) {
+    const projectId = decodeURIComponent(refreshReadmeMatch[1]);
+    const body = await readJsonBody(request);
+    const result = center.refreshProjectContextFromReadme({
+      project_id: projectId,
+      updated_by: body.updated_by ?? WEB_STEWARD_ID,
+      readme_path: body.readme_path,
+      note: body.note ?? "Refreshed from README via the web dashboard."
+    });
+    sendJson(response, 200, {
+      ...result,
+      dashboard: center.getProjectDashboard(projectId)
+    });
+    return;
+  }
+
   const approveTaskMatch = url.pathname.match(
     /^\/api\/projects\/([^/]+)\/tasks\/([^/]+)\/approve$/
   );

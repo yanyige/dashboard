@@ -53,6 +53,27 @@
         }
       }
     },
+    "source_documents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string" },
+          "path": { "type": "string" },
+          "scanned_at": { "type": "string" },
+          "title": { "type": "string" },
+          "summary": { "type": "string" },
+          "headings": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "status_points": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
     "decisions": {
       "type": "array"
     },
