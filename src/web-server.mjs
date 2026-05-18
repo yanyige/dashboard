@@ -147,6 +147,50 @@ async function handleApi({ center, request, response, url }) {
     return;
   }
 
+  const approveProposalMatch = url.pathname.match(
+    /^\/api\/projects\/([^/]+)\/requirement-proposals\/([^/]+)\/approve$/
+  );
+  if (request.method === "POST" && approveProposalMatch) {
+    const projectId = decodeURIComponent(approveProposalMatch[1]);
+    const proposalId = decodeURIComponent(approveProposalMatch[2]);
+    const body = await readJsonBody(request);
+    const result = center.approveRequirementProposal({
+      project_id: projectId,
+      proposal_id: proposalId,
+      reviewed_by: body.reviewed_by ?? WEB_STEWARD_ID,
+      review_note: body.review_note,
+      title: body.title,
+      objective: body.objective,
+      priority: body.priority,
+      required_skills: body.required_skills
+    });
+    sendJson(response, 200, {
+      ...result,
+      dashboard: center.getProjectDashboard(projectId)
+    });
+    return;
+  }
+
+  const rejectProposalMatch = url.pathname.match(
+    /^\/api\/projects\/([^/]+)\/requirement-proposals\/([^/]+)\/reject$/
+  );
+  if (request.method === "POST" && rejectProposalMatch) {
+    const projectId = decodeURIComponent(rejectProposalMatch[1]);
+    const proposalId = decodeURIComponent(rejectProposalMatch[2]);
+    const body = await readJsonBody(request);
+    const result = center.rejectRequirementProposal({
+      project_id: projectId,
+      proposal_id: proposalId,
+      reviewed_by: body.reviewed_by ?? WEB_STEWARD_ID,
+      review_note: body.review_note ?? "Rejected from the web dashboard."
+    });
+    sendJson(response, 200, {
+      ...result,
+      dashboard: center.getProjectDashboard(projectId)
+    });
+    return;
+  }
+
   const approveTaskMatch = url.pathname.match(
     /^\/api\/projects\/([^/]+)\/tasks\/([^/]+)\/approve$/
   );

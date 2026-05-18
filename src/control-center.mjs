@@ -343,15 +343,86 @@ export class ControlCenter {
       this.ownerReportPath(input.project_id, report.id),
       report
     );
+    const requirementProposals = this.createRequirementProposalsFromOwnerReport(report);
     this.writeRecord("project", this.projectPath(input.project_id), updatedProject);
     this.appendEvent("project.owner_report_submitted", {
       project_id: input.project_id,
       thread_id: input.thread_id,
       owner_report_id: report.id,
-      health: report.health
+      health: report.health,
+      requirement_proposal_ids: requirementProposals.map((proposal) => proposal.id)
     });
 
-    return { project: updatedProject, owner_report: report };
+    return { project: updatedProject, owner_report: report, requirement_proposals: requirementProposals };
+  }
+
+  createRequirementProposalsFromOwnerReport(report) {
+    const proposals = [];
+
+    for (const proposedTask of report.proposed_tasks ?? []) {
+      const existingProposal = this.findMatchingRequirementProposal(
+        report.project_id,
+        proposedTask
+      );
+      if (existingProposal) {
+        proposals.push(existingProposal);
+        continue;
+      }
+
+      proposals.push(
+        this.createRequirementProposal({
+          project_id: report.project_id,
+          owner_report_id: report.id,
+          proposed_by: report.thread_id,
+          title: proposedTask.title,
+          objective: proposedTask.objective,
+          priority: proposedTask.priority,
+          required_skills: proposedTask.required_skills
+        })
+      );
+    }
+
+    return proposals;
+  }
+
+  createRequirementProposal(input) {
+    requireFields(input, ["project_id", "title", "objective"]);
+    this.assertProjectAcceptsWork(input.project_id, "create requirement proposals");
+
+    const proposalId = this.nextId(
+      this.requirementProposalsDir(input.project_id),
+      "requirement-proposal"
+    );
+    const proposal = {
+      id: proposalId,
+      project_id: input.project_id,
+      owner_report_id: input.owner_report_id ?? null,
+      proposed_by: input.proposed_by ?? null,
+      title: input.title,
+      objective: input.objective,
+      priority: input.priority ?? "medium",
+      required_skills: uniqueStrings(input.required_skills ?? input.skills ?? []),
+      status: "pending",
+      reviewed_by: null,
+      reviewed_at: null,
+      review_note: null,
+      task_id: null,
+      created_at: now(),
+      updated_at: now()
+    };
+
+    this.writeRecord(
+      "requirement-proposal",
+      this.requirementProposalPath(input.project_id, proposal.id),
+      proposal
+    );
+    this.appendEvent("requirement_proposal.created", {
+      project_id: input.project_id,
+      proposal_id: proposal.id,
+      owner_report_id: proposal.owner_report_id
+    });
+
+    return proposal;
   }
 
   publishTask(task) {
@@ -523,6 +594,82 @@ export class ControlCenter {
     });
 
     return rejectedTask;
+  }
+
+  approveRequirementProposal(input) {
+    requireFields(input, ["project_id", "proposal_id", "reviewed_by"]);
+    this.assertProjectAcceptsWork(input.project_id, "approve requirement proposals");
+
+    const proposal = this.getRequirementProposal(input.project_id, input.proposal_id);
+    if (proposal.status !== "pending") {
+      throw new Error(`Only pending requirement proposals can be approved: ${proposal.id}`);
+    }
+
+    const task = this.publishTask({
+      project_id: input.project_id,
+      title: input.title ?? proposal.title,
+      objective: input.objective ?? proposal.objective,
+      priority: input.priority ?? proposal.priority,
+      required_skills: input.required_skills ?? proposal.required_skills,
+      created_by: input.reviewed_by,
+      owner_report_id: proposal.owner_report_id
+    });
+    const approvedProposal = {
+      ...proposal,
+      status: "approved",
+      reviewed_by: input.reviewed_by,
+      reviewed_at: now(),
+      review_note: input.review_note ?? "Approved into the project task hall.",
+      task_id: task.id,
+      updated_at: now()
+    };
+
+    this.writeRecord(
+      "requirement-proposal",
+      this.requirementProposalPath(input.project_id, proposal.id),
+      approvedProposal
+    );
+    this.appendEvent("requirement_proposal.approved", {
+      project_id: input.project_id,
+      proposal_id: proposal.id,
+      task_id: task.id,
+      reviewed_by: input.reviewed_by
+    });
+
+    return { proposal: approvedProposal, task };
+  }
+
+  rejectRequirementProposal(input) {
+    requireFields(input, ["project_id", "proposal_id", "reviewed_by"]);
+    this.assertProjectAcceptsWork(input.project_id, "reject requirement proposals");
+
+    const proposal = this.getRequirementProposal(input.project_id, input.proposal_id);
+    if (proposal.status !== "pending") {
+      throw new Error(`Only pending requirement proposals can be rejected: ${proposal.id}`);
+    }
+
+    const rejectedProposal = {
+      ...proposal,
+      status: "rejected",
+      reviewed_by: input.reviewed_by,
+      reviewed_at: now(),
+      review_note: input.review_note ?? "Rejected during project owner review.",
+      updated_at: now()
+    };
+
+    this.writeRecord(
+      "requirement-proposal",
+      this.requirementProposalPath(input.project_id, proposal.id),
+      rejectedProposal
+    );
+    this.appendEvent("requirement_proposal.rejected", {
+      project_id: input.project_id,
+      proposal_id: proposal.id,
+      reviewed_by: input.reviewed_by,
+      reason: input.review_note ?? ""
+    });
+
+    return { proposal: rejectedProposal };
   }
 
   claimTask(input) {
@@ -1154,6 +1301,10 @@ export class ControlCenter {
     return this.readJson(this.deliveryPath(projectId, deliveryId));
   }
 
+  getRequirementProposal(projectId, proposalId) {
+    return this.readJson(this.requirementProposalPath(projectId, proposalId));
+  }
+
   getProjectOwnerReport(projectId, reportId) {
     return this.readJson(this.ownerReportPath(projectId, reportId));
   }
@@ -1196,6 +1347,7 @@ export class ControlCenter {
       ownerStatus: ownerReportStatus
     });
     const tasks = this.listTasks(projectId);
+    const requirementProposals = this.listRequirementProposals(projectId);
     const deliveriesById = new Map(
       this.listDeliveries(projectId).map((delivery) => [delivery.id, delivery])
     );
@@ -1317,6 +1469,8 @@ export class ControlCenter {
         source_documents: context.source_documents ?? [],
         completed_task_count: context.completed_tasks.length
       },
+      requirement_proposals: requirementProposals,
+      requirement_proposal_summary: summarizeRequirementProposals(requirementProposals),
       task_summary: taskSummary,
       task_index: taskIndex,
       task_hall: taskHall
@@ -1364,6 +1518,29 @@ export class ControlCenter {
       .filter((fileName) => fileName.endsWith(".json"))
       .sort()
       .map((fileName) => this.readJson(join(ownerReportsDir, fileName)));
+  }
+
+  listRequirementProposals(projectId) {
+    const proposalsDir = this.requirementProposalsDir(projectId);
+    if (!existsSync(proposalsDir)) {
+      return [];
+    }
+
+    return readdirSync(proposalsDir)
+      .filter((fileName) => fileName.endsWith(".json"))
+      .sort()
+      .map((fileName) => this.readJson(join(proposalsDir, fileName)));
+  }
+
+  findMatchingRequirementProposal(projectId, proposedTask) {
+    const title = String(proposedTask.title ?? "").trim();
+    const objective = String(proposedTask.objective ?? "").trim();
+    return this.listRequirementProposals(projectId).find(
+      (proposal) =>
+        proposal.status !== "rejected" &&
+        proposal.title === title &&
+        proposal.objective === objective
+    );
   }
 
   getProjectCheck(checkId) {
@@ -1689,6 +1866,14 @@ export class ControlCenter {
 
   deliveryPath(projectId, deliveryId) {
     return join(this.deliveriesDir(projectId), `${deliveryId}.json`);
+  }
+
+  requirementProposalsDir(projectId) {
+    return join(this.projectDir(projectId), "requirement-proposals");
+  }
+
+  requirementProposalPath(projectId, proposalId) {
+    return join(this.requirementProposalsDir(projectId), `${proposalId}.json`);
   }
 
   ownerReportsDir(projectId) {
@@ -2439,6 +2624,27 @@ function summarizeTasks(tasks) {
     in_progress_task_ids: highSignal.in_progress,
     review_task_ids: highSignal.review,
     needs_context_task_ids: highSignal.needs_context
+  };
+}
+
+function summarizeRequirementProposals(proposals) {
+  const byStatus = {};
+  for (const proposal of proposals) {
+    byStatus[proposal.status] = (byStatus[proposal.status] ?? 0) + 1;
+  }
+
+  return {
+    total: proposals.length,
+    by_status: byStatus,
+    pending_ids: proposals
+      .filter((proposal) => proposal.status === "pending")
+      .map((proposal) => proposal.id),
+    approved_ids: proposals
+      .filter((proposal) => proposal.status === "approved")
+      .map((proposal) => proposal.id),
+    rejected_ids: proposals
+      .filter((proposal) => proposal.status === "rejected")
+      .map((proposal) => proposal.id)
   };
 }
 

@@ -281,6 +281,7 @@ The web dashboard exposes:
 - project health and lifecycle state
 - latest project status snapshot
 - latest scheduled check
+- requirement proposal review queue from project owner reports
 - task hall table
 - draft review actions to approve requirements into ready tasks or reject them
 - recent check history
@@ -295,6 +296,8 @@ GET  /api/projects/:projectId
 GET  /api/checks
 GET  /api/checks/:checkId
 POST /api/checks/run
+POST /api/projects/:projectId/requirement-proposals/:proposalId/approve
+POST /api/projects/:projectId/requirement-proposals/:proposalId/reject
 ```
 
 On the server deployment, the stable entrypoint is:
@@ -314,6 +317,10 @@ HOST=0.0.0.0 PORT=3000 CCC_ROOT=/opt/dashboard/data/workspace node /opt/dashboar
 ### Context Steward
 
 Maintains project context and prepares tasks before execution. In the preferred operating model, this Codex thread can act as the Context Steward. It decides whether a task is clear enough to become `ready`, attaches the relevant context snapshot, defines acceptance criteria, updates project context after accepted delivery, and writes periodic project status snapshots.
+
+### Requirement Proposal Review
+
+Project owner reports can include `--proposed-task` entries. Those entries are stored as requirement proposals first, not executable task hall work. A human owner or steward reviews each proposal with `approve-requirement-proposal` or `reject-requirement-proposal`; approval creates a draft task in the task hall, where it can then be prepared and released to Agents.
 
 ### Executor Agent
 

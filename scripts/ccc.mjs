@@ -26,6 +26,12 @@ Commands:
   owner-report      Submit a project owner Thread status report and optional reported context
   list-owner-reports
                     List project owner Thread status reports
+  list-requirement-proposals
+                    List project requirement proposals waiting for review
+  approve-requirement-proposal
+                    Approve a requirement proposal into the task hall as a draft task
+  reject-requirement-proposal
+                    Reject a requirement proposal before it enters the task hall
   update-project-status
                     Write a Context Steward project status snapshot
   show-project-dashboard
@@ -74,6 +80,9 @@ const handlers = {
   "owner-report": handleOwnerReport,
   "submit-owner-report": handleOwnerReport,
   "list-owner-reports": handleListOwnerReports,
+  "list-requirement-proposals": handleListRequirementProposals,
+  "approve-requirement-proposal": handleApproveRequirementProposal,
+  "reject-requirement-proposal": handleRejectRequirementProposal,
   "update-project-status": handleUpdateProjectStatus,
   "show-project-dashboard": handleShowProjectDashboard,
   "list-project-status": handleListProjectStatus,
@@ -253,6 +262,38 @@ function handleOwnerReport(center, flags) {
 
 function handleListOwnerReports(center, flags) {
   return { owner_reports: center.listProjectOwnerReports(projectFlag(flags)) };
+}
+
+function handleListRequirementProposals(center, flags) {
+  const status = stringFlag(flags, "status");
+  let proposals = center.listRequirementProposals(projectFlag(flags));
+  if (status) {
+    proposals = proposals.filter((proposal) => proposal.status === status);
+  }
+
+  return { requirement_proposals: proposals };
+}
+
+function handleApproveRequirementProposal(center, flags) {
+  return center.approveRequirementProposal({
+    project_id: projectFlag(flags),
+    proposal_id: requiredAnyFlag(flags, "proposal", "proposal-id"),
+    reviewed_by: stringFlag(flags, "reviewed-by", "steward") ?? "codex-thread",
+    review_note: stringFlag(flags, "review-note", "note"),
+    title: stringFlag(flags, "title"),
+    objective: stringFlag(flags, "objective"),
+    priority: stringFlag(flags, "priority"),
+    required_skills: optionalCsvFlag(flags, "skills", "required-skills")
+  });
+}
+
+function handleRejectRequirementProposal(center, flags) {
+  return center.rejectRequirementProposal({
+    project_id: projectFlag(flags),
+    proposal_id: requiredAnyFlag(flags, "proposal", "proposal-id"),
+    reviewed_by: stringFlag(flags, "reviewed-by", "steward") ?? "codex-thread",
+    review_note: stringFlag(flags, "review-note", "reason", "note")
+  });
 }
 
 function handleUpdateProjectStatus(center, flags) {
@@ -515,6 +556,13 @@ function printResult(command, result, flags) {
       console.log(
         `submitted owner report ${result.owner_report.id}; health=${result.owner_report.health}`
       );
+      if (result.requirement_proposals?.length > 0) {
+        console.log(
+          `requirement proposals: ${result.requirement_proposals
+            .map((proposal) => proposal.id)
+            .join(", ")}`
+        );
+      }
       break;
     case "list-owner-reports":
       printRows(
@@ -527,6 +575,27 @@ function printResult(command, result, flags) {
         ]),
         ["id", "thread", "health", "answered_at", "summary"]
       );
+      break;
+    case "list-requirement-proposals":
+      printRows(
+        result.requirement_proposals.map((proposal) => [
+          proposal.id,
+          proposal.status,
+          proposal.priority,
+          proposal.owner_report_id ?? "-",
+          proposal.task_id ?? "-",
+          proposal.title
+        ]),
+        ["id", "status", "priority", "owner_report", "task", "title"]
+      );
+      break;
+    case "approve-requirement-proposal":
+      console.log(
+        `approved requirement proposal ${result.proposal.id}; created task ${result.task.id}`
+      );
+      break;
+    case "reject-requirement-proposal":
+      console.log(`rejected requirement proposal ${result.proposal.id}`);
       break;
     case "update-project-status":
       console.log(

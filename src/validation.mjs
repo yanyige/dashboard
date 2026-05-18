@@ -15,6 +15,7 @@ const TASK_STATUSES = [
 const CONTEXT_STATUSES = ["missing", "ready", "stale"];
 const PRIORITIES = ["low", "medium", "high", "urgent"];
 const DELIVERY_STATUSES = ["submitted", "accepted", "rejected"];
+const REQUIREMENT_PROPOSAL_STATUSES = ["pending", "approved", "rejected"];
 
 export function validateRecord(type, value) {
   const errors = [];
@@ -47,6 +48,9 @@ export function validateRecord(type, value) {
     case "owner-report":
       validateOwnerReport(value, errors);
       break;
+    case "requirement-proposal":
+      validateRequirementProposal(value, errors);
+      break;
     default:
       throw new Error(`Unknown validation record type: ${type}`);
   }
@@ -54,6 +58,22 @@ export function validateRecord(type, value) {
   if (errors.length > 0) {
     throw new Error(`Invalid ${type}: ${errors.join("; ")}`);
   }
+}
+
+function validateRequirementProposal(value, errors) {
+  requiredString(value, "id", errors);
+  requiredString(value, "project_id", errors);
+  requiredString(value, "title", errors);
+  requiredString(value, "objective", errors);
+  enumValue(value, "priority", PRIORITIES, errors);
+  enumValue(value, "status", REQUIREMENT_PROPOSAL_STATUSES, errors);
+  arrayOfStrings(value, "required_skills", errors);
+  optionalStringOrNull(value, "owner_report_id", errors);
+  optionalStringOrNull(value, "proposed_by", errors);
+  optionalStringOrNull(value, "reviewed_by", errors);
+  optionalStringOrNull(value, "reviewed_at", errors);
+  optionalStringOrNull(value, "review_note", errors);
+  optionalStringOrNull(value, "task_id", errors);
 }
 
 function validateAgent(value, errors) {

@@ -89,6 +89,8 @@ const elements = {
   contextP2List: document.getElementById("contextP2List"),
   activeTaskCountLabel: document.getElementById("activeTaskCountLabel"),
   activeTaskList: document.getElementById("activeTaskList"),
+  requirementProposalCountLabel: document.getElementById("requirementProposalCountLabel"),
+  requirementProposalList: document.getElementById("requirementProposalList"),
   taskCountLabel: document.getElementById("taskCountLabel"),
   taskQueueList: document.getElementById("taskQueueList")
 };
@@ -166,6 +168,40 @@ async function reviewTask(task, action) {
     await loadDashboard();
   } catch (error) {
     elements.generatedAt.textContent = `审核失败：${error.message}`;
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function reviewRequirementProposal(proposal, action) {
+  const selected = getSelectedProject();
+  if (!selected) {
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const response = await fetch(
+      `/api/projects/${encodeURIComponent(selected.project.id)}/requirement-proposals/${encodeURIComponent(proposal.id)}/${action}`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({})
+      }
+    );
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? `HTTP ${response.status}`);
+    }
+
+    await fetch("/api/checks/run", {
+      method: "POST"
+    });
+    await loadDashboard();
+  } catch (error) {
+    elements.generatedAt.textContent = `需求审核失败：${error.message}`;
   } finally {
     setLoading(false);
   }
@@ -283,6 +319,7 @@ function renderProject(dashboard) {
     renderOwnerOverview(null);
     renderContextOverview(null);
     renderActiveTasks([]);
+    renderRequirementProposals([]);
     renderTaskQueue([]);
     return;
   }
@@ -295,6 +332,7 @@ function renderProject(dashboard) {
   renderOwnerOverview(dashboard);
   renderContextOverview(dashboard);
   renderActiveTasks(tasks);
+  renderRequirementProposals(dashboard.requirement_proposals ?? []);
   renderTaskQueue(tasks);
 }
 
@@ -408,6 +446,73 @@ function renderTaskQueue(tasks) {
   elements.taskQueueList.replaceChildren(
     ...sortedTasks.map((task) => createTaskCard(task, { compact: false, active: false }))
   );
+}
+
+function renderRequirementProposals(proposals) {
+  const sortedProposals = [...proposals].sort(compareRequirementProposals);
+  const pendingCount = sortedProposals.filter((proposal) => proposal.status === "pending").length;
+  elements.requirementProposalCountLabel.textContent =
+    `${pendingCount} 个待审核 / ${sortedProposals.length} 总计`;
+
+  if (sortedProposals.length === 0) {
+    elements.requirementProposalList.innerHTML =
+      `<div class="empty-state">当前没有项目负责人提出的待审核需求。</div>`;
+    return;
+  }
+
+  elements.requirementProposalList.replaceChildren(
+    ...sortedProposals.map((proposal) => createRequirementProposalCard(proposal))
+  );
+}
+
+function createRequirementProposalCard(proposal) {
+  const card = document.createElement("article");
+  card.className = `proposal-row proposal-row-${proposal.status}`;
+  card.id = `proposal-${proposal.id}`;
+  card.tabIndex = -1;
+  card.innerHTML = `
+    <div class="task-row-header">
+      <div class="task-title-block">
+        <div class="task-title-line">
+          <a class="task-id task-self-link" href="#proposal-${escapeHtml(proposal.id)}">${escapeHtml(proposal.id)}</a>
+          <strong>${escapeHtml(proposal.title)}</strong>
+        </div>
+        <p>${linkifyTaskReferences(proposal.objective || "暂无需求描述。")}</p>
+      </div>
+      <div class="task-status-stack">
+        <span class="queue-badge queue-badge-${proposal.status === "pending" ? "unissued" : proposal.status === "approved" ? "queued" : "rejected"}">${escapeHtml(formatRequirementProposalStatus(proposal.status))}</span>
+        <span class="pill">${escapeHtml(formatPriority(proposal.priority))}</span>
+      </div>
+    </div>
+    <div class="task-meta-grid proposal-meta-grid">
+      <div>
+        <span>来源报告</span>
+        <strong>${escapeHtml(proposal.owner_report_id ?? "-")}</strong>
+      </div>
+      <div>
+        <span>提出者</span>
+        <strong>${escapeHtml(proposal.proposed_by ?? "-")}</strong>
+      </div>
+      <div>
+        <span>所需技能</span>
+        <strong>${escapeHtml((proposal.required_skills ?? []).join(", ") || "-")}</strong>
+      </div>
+      <div>
+        <span>生成任务</span>
+        <strong>${proposal.task_id ? linkifyTaskReferences(proposal.task_id) : "-"}</strong>
+      </div>
+    </div>
+    ${proposal.status === "pending" ? `
+      <div class="action-row">
+        <button class="small-button primary-small" type="button" data-proposal-action="approve">批准进入任务列表</button>
+        <button class="small-button" type="button" data-proposal-action="reject">退回需求</button>
+      </div>
+    ` : ""}
+  `;
+  card.querySelectorAll("[data-proposal-action]").forEach((button) => {
+    button.addEventListener("click", () => reviewRequirementProposal(proposal, button.dataset.proposalAction));
+  });
+  return card;
 }
 
 function createTaskCard(task, { active }) {
@@ -728,6 +833,26 @@ function compareTasksForQueue(a, b) {
   return getTaskTimestamp(b) - getTaskTimestamp(a);
 }
 
+function compareRequirementProposals(a, b) {
+  const statusOrder = {
+    pending: 0,
+    approved: 1,
+    rejected: 2
+  };
+  const statusDelta = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
+  if (statusDelta !== 0) {
+    return statusDelta;
+  }
+
+  const priorityDelta = (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99);
+  if (priorityDelta !== 0) {
+    return priorityDelta;
+  }
+
+  return new Date(b.updated_at ?? b.created_at ?? 0).getTime() -
+    new Date(a.updated_at ?? a.created_at ?? 0).getTime();
+}
+
 function getTaskTimestamp(task) {
   return new Date(task.updated_at ?? task.created_at ?? 0).getTime();
 }
@@ -808,6 +933,9 @@ function setLoading(isLoading) {
   document.querySelectorAll("[data-agent-command]").forEach((button) => {
     button.disabled = isLoading;
   });
+  document.querySelectorAll("[data-proposal-action]").forEach((button) => {
+    button.disabled = isLoading;
+  });
 }
 
 function formatDate(value) {
@@ -838,6 +966,14 @@ function formatDeliveryStatus(value) {
   return {
     submitted: "已提交验收",
     accepted: "已验收",
+    rejected: "已退回"
+  }[value] ?? value ?? "-";
+}
+
+function formatRequirementProposalStatus(value) {
+  return {
+    pending: "待审核",
+    approved: "已进入任务列表",
     rejected: "已退回"
   }[value] ?? value ?? "-";
 }

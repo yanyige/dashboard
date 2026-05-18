@@ -123,10 +123,36 @@ const ownerReport = jsonRun([
 ]);
 assert.equal(ownerReport.owner_report.id, "owner-report-0001");
 assert.equal(ownerReport.owner_report.proposed_tasks.length, 1);
+assert.equal(ownerReport.requirement_proposals.length, 1);
+assert.equal(ownerReport.requirement_proposals[0].status, "pending");
 assert.equal(ownerReport.owner_report.context.summary, "Owner thread reported context summary.");
 assert.deepEqual(ownerReport.owner_report.context.requirements.p0, [
   "Owner reported P0 requirement."
 ]);
+
+const pendingProposals = jsonRun([
+  "list-requirement-proposals",
+  "--project",
+  "status-demo",
+  "--status",
+  "pending",
+  "--json"
+]);
+assert.equal(pendingProposals.requirement_proposals.length, 1);
+
+const approvedProposal = jsonRun([
+  "approve-requirement-proposal",
+  "--project",
+  "status-demo",
+  "--proposal",
+  pendingProposals.requirement_proposals[0].id,
+  "--reviewed-by",
+  "codex-thread",
+  "--json"
+]);
+assert.equal(approvedProposal.proposal.status, "approved");
+assert.equal(approvedProposal.proposal.task_id, approvedProposal.task.id);
+assert.equal(approvedProposal.task.status, "draft");
 
 const ownerCheck = jsonRun([
   "check-projects",
@@ -149,6 +175,10 @@ const ownerDashboard = jsonRun([
 assert.match(ownerDashboard.dashboard.owner_thread_prompt, /你现在是/);
 assert.equal(ownerDashboard.dashboard.reported_context.source, "owner_report");
 assert.equal(ownerDashboard.dashboard.reported_context.summary, "Owner thread reported context summary.");
+assert.equal(ownerDashboard.dashboard.requirement_proposal_summary.total, 1);
+assert.deepEqual(ownerDashboard.dashboard.requirement_proposal_summary.approved_ids, [
+  pendingProposals.requirement_proposals[0].id
+]);
 
 const history = jsonRun([
   "list-project-status",

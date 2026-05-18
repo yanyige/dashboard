@@ -147,6 +147,30 @@ try {
   assert.equal(manualCheck.results.length, 1);
   assert.equal(manualCheck.results[0].health, "on_track");
 
+  const ownerReport = await postJson(`${baseUrl}/api/projects/web-demo/owner-reports`, {
+    thread_id: "codex-thread",
+    thread_name: "Codex Thread",
+    health: "on_track",
+    summary: "Owner proposes a reviewed requirement.",
+    proposed_tasks: [
+      {
+        title: "Review proposal from web",
+        objective: "Keep proposed requirements out of the task hall until review.",
+        priority: "high",
+        required_skills: ["workflow"]
+      }
+    ]
+  });
+  assert.equal(ownerReport.requirement_proposals.length, 1);
+  assert.equal(ownerReport.dashboard.requirement_proposal_summary.pending_ids.length, 1);
+
+  const approvedProposal = await postJson(
+    `${baseUrl}/api/projects/web-demo/requirement-proposals/${ownerReport.requirement_proposals[0].id}/approve`
+  );
+  assert.equal(approvedProposal.proposal.status, "approved");
+  assert.equal(approvedProposal.task.status, "draft");
+  assert.equal(approvedProposal.dashboard.requirement_proposal_summary.approved_ids.length, 1);
+
   const html = await getText(`${baseUrl}/`);
   assert.match(html, /Codex 控制中心/);
   assert.match(html, /项目看板/);

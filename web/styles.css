@@ -500,6 +500,7 @@ h4 {
 }
 
 .active-task-list,
+.requirement-proposal-list,
 .task-queue-list {
   display: grid;
   gap: 12px;
@@ -507,12 +508,15 @@ h4 {
 
 #projectOverviewSection,
 #activeWorkSection,
+#requirementProposalSection,
 #taskQueueSection,
-.task-row {
+.task-row,
+.proposal-row {
   scroll-margin-top: 18px;
 }
 
-.task-row {
+.task-row,
+.proposal-row {
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -522,7 +526,8 @@ h4 {
   gap: 14px;
 }
 
-.task-row:target {
+.task-row:target,
+.proposal-row:target {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.16);
 }
@@ -553,6 +558,19 @@ h4 {
 
 .task-row-done {
   border-left: 4px solid var(--green);
+}
+
+.proposal-row-pending {
+  border-left: 4px solid var(--amber);
+  background: #fffdf9;
+}
+
+.proposal-row-approved {
+  border-left: 4px solid var(--blue);
+}
+
+.proposal-row-rejected {
+  border-left: 4px solid var(--red);
 }
 
 .task-title-block {
