@@ -167,6 +167,18 @@
             </div>
             <span id="requirementProposalCountLabel" class="muted">0 个需求</span>
           </div>
+          <form id="requirementProposalForm" class="requirement-proposal-form">
+            <input id="requirementTitleInput" type="text" placeholder="需求标题" aria-label="需求标题" required>
+            <select id="requirementPrioritySelect" aria-label="需求优先级">
+              <option value="high">高优先级</option>
+              <option value="urgent">紧急</option>
+              <option value="medium">中优先级</option>
+              <option value="low">低优先级</option>
+            </select>
+            <input id="requirementSkillsInput" type="text" placeholder="技能：node,frontend" aria-label="需求技能">
+            <textarea id="requirementObjectiveInput" rows="3" placeholder="充分描述需求目标、背景和验收关注点" aria-label="需求描述" required></textarea>
+            <button id="requirementProposalSendButton" class="primary-button" type="submit">发起需求</button>
+          </form>
           <div id="requirementProposalList" class="requirement-proposal-list"></div>
         </section>
 

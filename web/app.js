@@ -111,6 +111,12 @@ const elements = {
   activeTaskCountLabel: document.getElementById("activeTaskCountLabel"),
   activeTaskList: document.getElementById("activeTaskList"),
   requirementProposalCountLabel: document.getElementById("requirementProposalCountLabel"),
+  requirementProposalForm: document.getElementById("requirementProposalForm"),
+  requirementTitleInput: document.getElementById("requirementTitleInput"),
+  requirementPrioritySelect: document.getElementById("requirementPrioritySelect"),
+  requirementSkillsInput: document.getElementById("requirementSkillsInput"),
+  requirementObjectiveInput: document.getElementById("requirementObjectiveInput"),
+  requirementProposalSendButton: document.getElementById("requirementProposalSendButton"),
   requirementProposalList: document.getElementById("requirementProposalList"),
   taskCountLabel: document.getElementById("taskCountLabel"),
   taskFilterControls: document.getElementById("taskFilterControls"),
@@ -121,6 +127,7 @@ elements.refreshButton.addEventListener("click", () => loadDashboard());
 elements.runCheckButton.addEventListener("click", () => runProjectCheck());
 elements.copyOwnerPromptButton.addEventListener("click", () => copyOwnerThreadPrompt());
 elements.threadInboxForm.addEventListener("submit", (event) => sendThreadInboxMessage(event));
+elements.requirementProposalForm.addEventListener("submit", (event) => createRequirementProposal(event));
 window.addEventListener("hashchange", () => expandTaskFromHash());
 
 loadDashboard();
@@ -226,6 +233,50 @@ async function reviewRequirementProposal(proposal, action) {
     await loadDashboard();
   } catch (error) {
     elements.generatedAt.textContent = `需求审核失败：${error.message}`;
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function createRequirementProposal(event) {
+  event.preventDefault();
+  const selected = getSelectedProject();
+  const title = elements.requirementTitleInput.value.trim();
+  const objective = elements.requirementObjectiveInput.value.trim();
+  if (!selected || !title || !objective) {
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const response = await fetch(
+      `/api/projects/${encodeURIComponent(selected.project.id)}/requirement-proposals`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          title,
+          objective,
+          priority: elements.requirementPrioritySelect.value,
+          required_skills: parseCommaList(elements.requirementSkillsInput.value),
+          proposed_by: "web-dashboard"
+        })
+      }
+    );
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? `HTTP ${response.status}`);
+    }
+
+    elements.requirementTitleInput.value = "";
+    elements.requirementObjectiveInput.value = "";
+    elements.requirementSkillsInput.value = "";
+    elements.requirementPrioritySelect.value = "high";
+    await loadDashboard();
+  } catch (error) {
+    elements.generatedAt.textContent = `需求发起失败：${error.message}`;
   } finally {
     setLoading(false);
   }
@@ -622,10 +673,20 @@ function renderRequirementProposals(proposals) {
   const pendingCount = sortedProposals.filter((proposal) => proposal.status === "pending").length;
   elements.requirementProposalCountLabel.textContent =
     `${pendingCount} 个待审核 / ${sortedProposals.length} 总计`;
+  const hasSelectedProject = Boolean(getSelectedProject());
+  [
+    elements.requirementTitleInput,
+    elements.requirementPrioritySelect,
+    elements.requirementSkillsInput,
+    elements.requirementObjectiveInput,
+    elements.requirementProposalSendButton
+  ].forEach((element) => {
+    element.disabled = state.loading || !hasSelectedProject;
+  });
 
   if (sortedProposals.length === 0) {
     elements.requirementProposalList.innerHTML =
-      `<div class="empty-state">当前没有项目负责人提出的待审核需求。</div>`;
+      `<div class="empty-state">当前没有待审核需求，可以在上方发起。</div>`;
     return;
   }
 
@@ -1172,6 +1233,15 @@ function setLoading(isLoading) {
   const hasSelectedProject = Boolean(getSelectedProject());
   elements.threadInboxInput.disabled = isLoading || !hasSelectedProject;
   elements.threadInboxSendButton.disabled = isLoading || !hasSelectedProject;
+  [
+    elements.requirementTitleInput,
+    elements.requirementPrioritySelect,
+    elements.requirementSkillsInput,
+    elements.requirementObjectiveInput,
+    elements.requirementProposalSendButton
+  ].forEach((element) => {
+    element.disabled = isLoading || !hasSelectedProject;
+  });
   document.querySelectorAll("[data-task-action]").forEach((button) => {
     button.disabled = isLoading;
   });
@@ -1266,6 +1336,13 @@ function translateStatusText(value) {
     .replace(/Stale task context: ([^.]+)\./g, "任务上下文需要更新：$1。")
     .replace(/Re-prepare stale task\(s\): ([^.]+)\./g, "请重新准备任务上下文：$1。")
     .replace(/Blocked task\(s\): ([^.]+)\./g, "阻塞任务：$1。");
+}
+
+function parseCommaList(value) {
+  return String(value ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function escapeHtml(value) {

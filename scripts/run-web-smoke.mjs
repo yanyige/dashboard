@@ -175,6 +175,21 @@ try {
   assert.equal(approvedProposal.task.status, "draft");
   assert.equal(approvedProposal.dashboard.requirement_proposal_summary.approved_ids.length, 1);
 
+  const directProposal = await postJson(`${baseUrl}/api/projects/web-demo/requirement-proposals`, {
+    title: "Direct web requirement",
+    objective: "Allow the owner to create project requirements from the dashboard.",
+    priority: "urgent",
+    required_skills: ["node", "frontend"]
+  });
+  assert.equal(directProposal.proposal.status, "pending");
+  assert.equal(directProposal.proposal.proposed_by, "web-dashboard");
+  assert.deepEqual(directProposal.proposal.required_skills, ["node", "frontend"]);
+  assert.ok(
+    directProposal.dashboard.requirement_proposal_summary.pending_ids.includes(
+      directProposal.proposal.id
+    )
+  );
+
   const threadMessage = await postJson(`${baseUrl}/api/projects/web-demo/thread-inbox`, {
     sender_id: "web-owner",
     sender_name: "Dashboard User",
@@ -206,10 +221,12 @@ try {
   assert.match(html, /项目看板/);
   assert.match(html, /taskFilterControls/);
   assert.match(html, /projectChatSection/);
+  assert.match(html, /requirementProposalForm/);
   const appJs = await getText(`${baseUrl}/app.js`);
   assert.match(appJs, /data-task-filter/);
   assert.match(appJs, /已退回/);
   assert.match(appJs, /thread-inbox/);
+  assert.match(appJs, /createRequirementProposal/);
 
   console.log("web smoke passed");
 } finally {

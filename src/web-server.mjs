@@ -147,6 +147,28 @@ async function handleApi({ center, request, response, url }) {
     return;
   }
 
+  const createProposalMatch = url.pathname.match(
+    /^\/api\/projects\/([^/]+)\/requirement-proposals$/
+  );
+  if (request.method === "POST" && createProposalMatch) {
+    const projectId = decodeURIComponent(createProposalMatch[1]);
+    const body = await readJsonBody(request);
+    const proposal = center.createRequirementProposal({
+      project_id: projectId,
+      title: body.title,
+      objective: body.objective,
+      priority: body.priority,
+      required_skills: normalizeRequiredSkills(body.required_skills ?? body.skills),
+      proposed_by: body.proposed_by ?? "web-dashboard",
+      owner_report_id: body.owner_report_id
+    });
+    sendJson(response, 201, {
+      proposal,
+      dashboard: center.getProjectDashboard(projectId)
+    });
+    return;
+  }
+
   const approveProposalMatch = url.pathname.match(
     /^\/api\/projects\/([^/]+)\/requirement-proposals\/([^/]+)\/approve$/
   );
@@ -377,6 +399,21 @@ function sendText(response, statusCode, payload, type) {
     "cache-control": "no-store"
   });
   response.end(payload);
+}
+
+function normalizeRequiredSkills(value) {
+  if (Array.isArray(value)) {
+    return value.map(String).map((item) => item.trim()).filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
 }
 
 function contentType(filePath) {

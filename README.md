@@ -297,6 +297,7 @@ GET  /api/projects/:projectId
 GET  /api/checks
 GET  /api/checks/:checkId
 POST /api/checks/run
+POST /api/projects/:projectId/requirement-proposals
 POST /api/projects/:projectId/requirement-proposals/:proposalId/approve
 POST /api/projects/:projectId/requirement-proposals/:proposalId/reject
 GET  /api/projects/:projectId/thread-inbox

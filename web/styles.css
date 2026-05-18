@@ -507,6 +507,26 @@ h4 {
   gap: 12px;
 }
 
+.requirement-proposal-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.1fr) 150px minmax(180px, 0.9fr) auto;
+  gap: 10px;
+  margin-bottom: 14px;
+  align-items: stretch;
+}
+
+.requirement-proposal-form textarea {
+  grid-column: 1 / -2;
+  min-height: 74px;
+  resize: vertical;
+}
+
+.requirement-proposal-form input,
+.requirement-proposal-form select,
+.requirement-proposal-form textarea {
+  min-width: 0;
+}
+
 .thread-inbox-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -515,10 +535,12 @@ h4 {
   align-items: stretch;
 }
 
+.requirement-proposal-form input,
+.requirement-proposal-form select,
+.requirement-proposal-form textarea,
 .thread-inbox-form textarea {
   width: 100%;
   min-width: 0;
-  resize: vertical;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
@@ -527,6 +549,13 @@ h4 {
   line-height: 1.5;
 }
 
+.thread-inbox-form textarea {
+  resize: vertical;
+}
+
+.requirement-proposal-form input:focus-visible,
+.requirement-proposal-form select:focus-visible,
+.requirement-proposal-form textarea:focus-visible,
 .thread-inbox-form textarea:focus-visible {
   outline: 3px solid rgba(15, 118, 110, 0.24);
   border-color: var(--accent);
@@ -1013,8 +1042,13 @@ h4 {
 
   .overview-grid,
   .overview-grid-three,
+  .requirement-proposal-form,
   .task-detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .requirement-proposal-form textarea {
+    grid-column: auto;
   }
 
   .task-meta-grid {
