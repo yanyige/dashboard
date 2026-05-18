@@ -42,6 +42,10 @@ const PRIORITY_LABELS = {
 const elements = {
   generatedAt: document.getElementById("generatedAt"),
   projectList: document.getElementById("projectList"),
+  activeProjectCount: document.getElementById("activeProjectCount"),
+  completedProjectSection: document.getElementById("completedProjectSection"),
+  completedProjectList: document.getElementById("completedProjectList"),
+  completedProjectCount: document.getElementById("completedProjectCount"),
   refreshButton: document.getElementById("refreshButton"),
   runCheckButton: document.getElementById("runCheckButton"),
   projectTitle: document.getElementById("projectTitle"),
@@ -116,13 +120,13 @@ async function loadDashboard() {
     });
     state.data = await response.json();
     if (!state.selectedProjectId && state.data.projects.length > 0) {
-      state.selectedProjectId = state.data.projects[0].project.id;
+      state.selectedProjectId = getPreferredProjectId(state.data.projects);
     }
     if (
       state.selectedProjectId &&
       !state.data.projects.some((project) => project.project.id === state.selectedProjectId)
     ) {
-      state.selectedProjectId = state.data.projects[0]?.project.id ?? null;
+      state.selectedProjectId = getPreferredProjectId(state.data.projects);
     }
     render();
   } catch (error) {
@@ -359,23 +363,44 @@ function render() {
 }
 
 function renderProjects(projects) {
+  const activeProjects = projects.filter((dashboard) => !isCompletedProject(dashboard));
+  const completedProjects = projects.filter(isCompletedProject);
+
+  elements.activeProjectCount.textContent = String(activeProjects.length);
   elements.projectList.replaceChildren(
-    ...projects.map((dashboard) => {
-      const button = document.createElement("button");
-      const isActive = dashboard.project.id === state.selectedProjectId;
-      button.className = `project-item${isActive ? " active" : ""}`;
-      button.type = "button";
-      button.innerHTML = `
-        <strong>${escapeHtml(dashboard.project.title)}</strong>
-        <span>${escapeHtml(dashboard.project.id)} | ${escapeHtml(formatHealth(dashboard.project.health))}</span>
-      `;
-      button.addEventListener("click", () => {
-        state.selectedProjectId = dashboard.project.id;
-        render();
-      });
-      return button;
-    })
+    ...(activeProjects.length > 0
+      ? activeProjects.map((dashboard) => createProjectButton(dashboard))
+      : [createEmptyProjectState("暂无进行中的项目。")])
   );
+
+  elements.completedProjectCount.textContent = String(completedProjects.length);
+  elements.completedProjectSection.hidden = completedProjects.length === 0;
+  elements.completedProjectList.replaceChildren(
+    ...completedProjects.map((dashboard) => createProjectButton(dashboard, "completed"))
+  );
+}
+
+function createProjectButton(dashboard, variant = "active") {
+  const button = document.createElement("button");
+  const isActive = dashboard.project.id === state.selectedProjectId;
+  button.className = `project-item project-item-${variant}${isActive ? " active" : ""}`;
+  button.type = "button";
+  button.innerHTML = `
+    <strong>${escapeHtml(dashboard.project.title)}</strong>
+    <span>${escapeHtml(dashboard.project.id)} | ${escapeHtml(formatLifecycle(dashboard.project.status))} | ${escapeHtml(formatHealth(dashboard.project.health))}</span>
+  `;
+  button.addEventListener("click", () => {
+    state.selectedProjectId = dashboard.project.id;
+    render();
+  });
+  return button;
+}
+
+function createEmptyProjectState(message) {
+  const empty = document.createElement("div");
+  empty.className = "project-list-empty";
+  empty.textContent = message;
+  return empty;
 }
 
 function renderProject(dashboard) {
@@ -906,6 +931,17 @@ function getSelectedTaskIndex() {
   return selected?.task_index ?? selected?.task_hall ?? [];
 }
 
+function getPreferredProjectId(projects) {
+  return projects.find((dashboard) => !isCompletedProject(dashboard))?.project.id
+    ?? projects[0]?.project.id
+    ?? null;
+}
+
+function isCompletedProject(dashboard) {
+  return ["done", "archived"].includes(dashboard.project.status) ||
+    dashboard.project.health === "done";
+}
+
 function getSelectedRequirements() {
   const selected = getSelectedProject();
   const requirements =
@@ -984,6 +1020,15 @@ function formatDate(value) {
 
 function formatHealth(value) {
   return HEALTH_LABELS[value] ?? value ?? "-";
+}
+
+function formatLifecycle(value) {
+  return {
+    active: "进行中",
+    paused: "暂停",
+    done: "已完成",
+    archived: "已归档"
+  }[value] ?? value ?? "-";
 }
 
 function formatTaskStatus(value) {

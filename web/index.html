@@ -27,7 +27,21 @@
           </button>
         </div>
 
-        <div class="project-list" id="projectList"></div>
+        <div class="project-section">
+          <div class="project-section-header">
+            <span>进行中</span>
+            <span id="activeProjectCount" class="muted">0</span>
+          </div>
+          <div class="project-list" id="projectList"></div>
+        </div>
+
+        <div id="completedProjectSection" class="project-section completed-project-section" hidden>
+          <div class="project-section-header">
+            <span>已完成 / 归档</span>
+            <span id="completedProjectCount" class="muted">0</span>
+          </div>
+          <div class="project-list completed-project-list" id="completedProjectList"></div>
+        </div>
       </aside>
 
       <main class="main-panel">

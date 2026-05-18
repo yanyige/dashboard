@@ -154,6 +154,29 @@ h4 {
   cursor: wait;
 }
 
+.project-section {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.project-section-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.completed-project-section {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
 .project-list {
   display: grid;
   gap: 8px;
@@ -174,6 +197,11 @@ h4 {
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
+.project-item-completed {
+  background: var(--surface-soft);
+  opacity: 0.82;
+}
+
 .project-item strong {
   display: block;
   font-size: 14px;
@@ -184,6 +212,14 @@ h4 {
 .project-item span {
   color: var(--muted);
   font-size: 12px;
+}
+
+.project-list-empty {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .main-panel {
