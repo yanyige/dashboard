@@ -346,7 +346,7 @@ function renderOwnerOverview(dashboard) {
     ? ""
     : ` · ${ownerStatus.freshness_minutes} 分钟前`;
   elements.ownerReportMeta.textContent = `${report.id} · ${formatDate(report.answered_at)}${freshness}`;
-  elements.ownerReportSummary.textContent = translateStatusText(report.summary);
+  elements.ownerReportSummary.innerHTML = linkifyTaskReferences(translateStatusText(report.summary));
   renderList(elements.ownerProgressList, report.progress?.map(translateStatusText));
   renderList(
     elements.ownerRiskList,
@@ -374,7 +374,7 @@ function renderContextOverview(dashboard) {
     ? `${displayContext.source_label} ${displayContext.source_id} · ${formatDate(displayContext.reported_at)}`
     : `${displayContext.source_label} ${displayContext.source_id}`;
   elements.contextMeta.textContent = `${sourceMeta} · 快照 ${context.id} v${context.version}`;
-  elements.contextSummaryText.textContent = displayContext.summary ?? "暂无上下文摘要。";
+  elements.contextSummaryText.innerHTML = linkifyTaskReferences(displayContext.summary ?? "暂无上下文摘要。");
   renderList(elements.contextP0List, requirements.p0 ?? []);
   renderList(elements.contextP1List, requirements.p1 ?? []);
   renderList(elements.contextP2List, requirements.p2 ?? []);
@@ -414,14 +414,17 @@ function createTaskCard(task, { active }) {
   const card = document.createElement("article");
   const bucketClass = getTaskBucketClass(task);
   card.className = `task-row task-row-${bucketClass}`;
+  card.id = active ? `active-task-${task.id}` : `task-${task.id}`;
+  card.dataset.taskId = task.id;
+  card.tabIndex = -1;
   card.innerHTML = `
     <div class="task-row-header">
       <div class="task-title-block">
         <div class="task-title-line">
-          <span class="task-id">${escapeHtml(task.id)}</span>
+          <a class="task-id task-self-link" href="#task-${escapeHtml(task.id)}">${escapeHtml(task.id)}</a>
           <strong>${escapeHtml(task.title)}</strong>
         </div>
-        <p>${escapeHtml(task.objective || "暂无任务描述。")}</p>
+        <p>${linkifyTaskReferences(task.objective || "暂无任务描述。")}</p>
       </div>
       <div class="task-status-stack">
         <span class="queue-badge queue-badge-${bucketClass}">${escapeHtml(getTaskBucketLabel(task))}</span>
@@ -459,27 +462,27 @@ function renderTaskBrief(task) {
   return `
     <div class="task-brief">
       <span>执行说明</span>
-      <p>${escapeHtml(task.task_brief)}</p>
+      <p>${linkifyTaskReferences(task.task_brief)}</p>
     </div>
   `;
 }
 
 function renderTaskMeta(task) {
   const values = [
-    ["优先级", formatPriority(task.priority)],
-    ["上下文", formatContextStatus(task.context_status)],
-    ["Agent", formatAgent(task)],
-    ["依赖", formatDependencies(task)],
-    ["创建", formatDate(task.created_at)],
-    ["更新", formatDate(task.updated_at)]
+    { label: "优先级", value: formatPriority(task.priority) },
+    { label: "上下文", value: formatContextStatus(task.context_status) },
+    { label: "Agent", value: formatAgent(task) },
+    { label: "依赖", html: linkifyTaskReferences(formatDependencies(task)) },
+    { label: "创建", value: formatDate(task.created_at) },
+    { label: "更新", value: formatDate(task.updated_at) }
   ];
 
   return `
     <div class="task-meta-grid">
-      ${values.map(([label, value]) => `
+      ${values.map(({ label, value, html }) => `
         <div>
           <span>${escapeHtml(label)}</span>
-          <strong>${escapeHtml(value)}</strong>
+          <strong>${html ?? escapeHtml(value)}</strong>
         </div>
       `).join("")}
     </div>
@@ -507,7 +510,7 @@ function renderAgentAcceptanceBlock(task) {
     <div class="agent-acceptance-block">
       <span>Agent 接收回报</span>
       ${rows.map(([label, value]) => `
-        <p><strong>${escapeHtml(label)}：</strong>${escapeHtml(value)}</p>
+        <p><strong>${escapeHtml(label)}：</strong>${linkifyTaskReferences(value)}</p>
       `).join("")}
     </div>
   `;
@@ -544,7 +547,7 @@ function renderTaskInfoBlock(title, values) {
     <section class="task-info-block">
       <h4>${escapeHtml(title)}</h4>
       <ul>
-        ${normalizedValues.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}
+        ${normalizedValues.map((value) => `<li>${linkifyTaskReferences(value)}</li>`).join("")}
       </ul>
     </section>
   `;
@@ -588,9 +591,9 @@ function renderDeliveryBlock(task) {
     <div class="delivery-block">
       <span>交付记录</span>
       <strong>${escapeHtml(task.delivery.id)} · ${escapeHtml(formatDeliveryStatus(task.delivery.status))}</strong>
-      <p>${escapeHtml(task.delivery.summary || "暂无交付摘要。")}</p>
-      <p>${escapeHtml(verification)}</p>
-      <p>${escapeHtml(aiSummary)}</p>
+      <p>${linkifyTaskReferences(task.delivery.summary || "暂无交付摘要。")}</p>
+      <p>${linkifyTaskReferences(verification)}</p>
+      <p>${linkifyTaskReferences(aiSummary)}</p>
     </div>
   `;
 }
@@ -618,9 +621,16 @@ function renderList(element, values) {
   element.replaceChildren(
     ...normalizedValues.map((value) => {
       const item = document.createElement("li");
-      item.textContent = value;
+      item.innerHTML = linkifyTaskReferences(value);
       return item;
     })
+  );
+}
+
+function linkifyTaskReferences(value) {
+  return escapeHtml(value).replace(
+    /\b(task-\d{4,})\b/g,
+    '<a class="inline-task-link" href="#task-$1">$1</a>'
   );
 }
 

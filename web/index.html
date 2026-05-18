@@ -45,7 +45,7 @@
       </aside>
 
       <main class="main-panel">
-        <section class="project-overview" aria-label="项目看板">
+        <section id="projectOverviewSection" class="project-overview" aria-label="项目看板">
           <div class="overview-hero">
             <div>
               <p class="eyebrow">项目看板</p>
@@ -56,26 +56,26 @@
           </div>
 
           <div class="metric-strip" aria-label="项目指标">
-            <div class="metric">
+            <a class="metric metric-link" href="#taskQueueSection" aria-label="查看全部任务列表">
               <span class="metric-label">任务总数</span>
               <strong id="metricTasks">0</strong>
-            </div>
-            <div class="metric">
+            </a>
+            <a class="metric metric-link" href="#taskQueueSection" aria-label="查看任务队列">
               <span class="metric-label">任务队列</span>
               <strong id="metricQueued">0</strong>
-            </div>
-            <div class="metric">
+            </a>
+            <a class="metric metric-link" href="#activeWorkSection" aria-label="查看正在完成的任务">
               <span class="metric-label">正在完成</span>
               <strong id="metricActiveTasks">0</strong>
-            </div>
-            <div class="metric">
+            </a>
+            <a class="metric metric-link" href="#taskQueueSection" aria-label="查看未下发任务">
               <span class="metric-label">未下发</span>
               <strong id="metricUnissued">0</strong>
-            </div>
-            <div class="metric">
+            </a>
+            <a class="metric metric-link" href="#taskQueueSection" aria-label="查看阻塞任务">
               <span class="metric-label">阻塞</span>
               <strong id="metricBlocked">0</strong>
-            </div>
+            </a>
           </div>
 
           <div class="overview-grid">
@@ -133,7 +133,7 @@
           </div>
         </section>
 
-        <section class="panel active-work-panel">
+        <section id="activeWorkSection" class="panel active-work-panel">
           <div class="panel-header">
             <div>
               <p class="eyebrow">Active Work</p>
@@ -144,7 +144,7 @@
           <div id="activeTaskList" class="active-task-list"></div>
         </section>
 
-        <section class="panel task-queue-panel">
+        <section id="taskQueueSection" class="panel task-queue-panel">
           <div class="panel-header">
             <div>
               <p class="eyebrow">Task Queue</p>

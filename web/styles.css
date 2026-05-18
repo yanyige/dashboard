@@ -27,6 +27,10 @@ body {
   overflow-x: hidden;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -385,6 +389,25 @@ h4 {
   align-content: space-between;
 }
 
+.metric-link {
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.metric-link:hover,
+.metric-link:focus-visible {
+  border-color: var(--accent);
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+
+.metric-link:focus-visible,
+.inline-task-link:focus-visible,
+.task-self-link:focus-visible {
+  outline: 3px solid rgba(15, 118, 110, 0.24);
+  outline-offset: 3px;
+}
+
 .metric-label {
   color: var(--muted);
   font-size: 12px;
@@ -482,6 +505,13 @@ h4 {
   gap: 12px;
 }
 
+#projectOverviewSection,
+#activeWorkSection,
+#taskQueueSection,
+.task-row {
+  scroll-margin-top: 18px;
+}
+
 .task-row {
   min-width: 0;
   border: 1px solid var(--border);
@@ -490,6 +520,22 @@ h4 {
   background: var(--surface);
   display: grid;
   gap: 14px;
+}
+
+.task-row:target {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.16);
+}
+
+.inline-task-link {
+  color: var(--blue);
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.inline-task-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .task-row-queued {
@@ -541,6 +587,16 @@ h4 {
   font-size: 12px;
   font-weight: 850;
   letter-spacing: 0.04em;
+}
+
+.task-self-link {
+  text-decoration: none;
+}
+
+.task-self-link:hover {
+  color: var(--blue);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .task-status-stack {
