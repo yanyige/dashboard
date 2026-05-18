@@ -98,6 +98,7 @@ const elements = {
 elements.refreshButton.addEventListener("click", () => loadDashboard());
 elements.runCheckButton.addEventListener("click", () => runProjectCheck());
 elements.copyOwnerPromptButton.addEventListener("click", () => copyOwnerThreadPrompt());
+window.addEventListener("hashchange", () => expandTaskFromHash());
 
 loadDashboard();
 
@@ -444,8 +445,9 @@ function renderTaskQueue(tasks) {
   }
 
   elements.taskQueueList.replaceChildren(
-    ...sortedTasks.map((task) => createTaskCard(task, { compact: false, active: false }))
+    ...sortedTasks.map((task) => createTaskCard(task, { active: false, accordion: true }))
   );
+  expandTaskFromHash();
 }
 
 function renderRequirementProposals(proposals) {
@@ -522,29 +524,43 @@ function createTaskCard(task, { active }) {
   card.id = active ? `active-task-${task.id}` : `task-${task.id}`;
   card.dataset.taskId = task.id;
   card.tabIndex = -1;
+  const detailId = `${card.id}-details`;
+  const isAccordion = !active;
+  const isOpen = isAccordion && location.hash === `#${card.id}`;
+  card.classList.toggle("task-row-expanded", isOpen);
+  const details = [
+    renderTaskBrief(task),
+    renderTaskMeta(task),
+    renderAgentAcceptanceBlock(task),
+    renderTaskDetailGrid(task, active),
+    renderAgentCommandBlock(task),
+    renderDeliveryBlock(task),
+    renderTaskActions(task)
+  ].filter(Boolean).join("");
+
   card.innerHTML = `
-    <div class="task-row-header">
-      <div class="task-title-block">
+    <div class="task-row-header${isAccordion ? " task-accordion-header" : ""}">
+      <${isAccordion ? "button" : "div"} class="task-title-block${isAccordion ? " task-accordion-trigger" : ""}" ${isAccordion ? `type="button" data-task-toggle aria-expanded="${isOpen}" aria-controls="${escapeHtml(detailId)}"` : ""}>
         <div class="task-title-line">
-          <a class="task-id task-self-link" href="#task-${escapeHtml(task.id)}">${escapeHtml(task.id)}</a>
+          ${isAccordion ? `<span class="task-id">${escapeHtml(task.id)}</span>` : `<a class="task-id task-self-link" href="#task-${escapeHtml(task.id)}">${escapeHtml(task.id)}</a>`}
           <strong>${escapeHtml(task.title)}</strong>
         </div>
-        <p>${linkifyTaskReferences(task.objective || "暂无任务描述。")}</p>
-      </div>
+        ${isAccordion ? `<span class="task-accordion-summary">${escapeHtml(formatPriority(task.priority))} · ${escapeHtml(formatContextStatus(task.context_status))} · ${escapeHtml(formatAgent(task))}</span>` : `<p>${linkifyTaskReferences(task.objective || "暂无任务描述。")}</p>`}
+      </${isAccordion ? "button" : "div"}>
       <div class="task-status-stack">
         <span class="queue-badge queue-badge-${bucketClass}">${escapeHtml(getTaskBucketLabel(task))}</span>
         ${statusPill(formatTaskOperationalStatus(task))}
+        ${isAccordion ? `<button class="task-expand-button" type="button" data-task-toggle aria-expanded="${isOpen}" aria-controls="${escapeHtml(detailId)}">${isOpen ? "收起" : "展开"}</button>` : ""}
       </div>
     </div>
-
-    ${renderTaskBrief(task)}
-    ${renderTaskMeta(task)}
-    ${renderAgentAcceptanceBlock(task)}
-    ${renderTaskDetailGrid(task, active)}
-    ${renderAgentCommandBlock(task)}
-    ${renderDeliveryBlock(task)}
-    ${renderTaskActions(task)}
+    ${isAccordion ? `<div id="${escapeHtml(detailId)}" class="task-accordion-panel" ${isOpen ? "" : "hidden"}>
+      <p class="task-objective">${linkifyTaskReferences(task.objective || "暂无任务描述。")}</p>
+      ${details}
+    </div>` : details}
   `;
+  card.querySelectorAll("[data-task-toggle]").forEach((button) => {
+    button.addEventListener("click", () => toggleTaskAccordion(card));
+  });
   card.querySelectorAll("[data-task-action]").forEach((button) => {
     button.addEventListener("click", () => reviewTask(task, button.dataset.taskAction));
   });
@@ -557,6 +573,34 @@ function createTaskCard(task, { active }) {
     });
   });
   return card;
+}
+
+function toggleTaskAccordion(card, forceOpen = undefined) {
+  const panel = card.querySelector(".task-accordion-panel");
+  if (!panel) {
+    return;
+  }
+
+  const isOpen = forceOpen ?? panel.hidden;
+  panel.hidden = !isOpen;
+  card.classList.toggle("task-row-expanded", isOpen);
+  card.querySelectorAll("[data-task-toggle]").forEach((button) => {
+    button.setAttribute("aria-expanded", String(isOpen));
+    if (button.classList.contains("task-expand-button")) {
+      button.textContent = isOpen ? "收起" : "展开";
+    }
+  });
+}
+
+function expandTaskFromHash() {
+  if (!location.hash.startsWith("#task-")) {
+    return;
+  }
+
+  const card = document.getElementById(location.hash.slice(1));
+  if (card) {
+    toggleTaskAccordion(card, true);
+  }
 }
 
 function renderTaskBrief(task) {

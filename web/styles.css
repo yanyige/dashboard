@@ -579,6 +579,74 @@ h4 {
   gap: 8px;
 }
 
+.task-accordion-trigger {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.task-accordion-trigger:hover .task-title-line strong,
+.task-accordion-trigger:focus-visible .task-title-line strong {
+  color: var(--blue);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.task-accordion-trigger:focus-visible {
+  outline: 3px solid rgba(15, 118, 110, 0.24);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+.task-accordion-summary {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.task-accordion-panel {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  display: grid;
+  gap: 14px;
+}
+
+.task-accordion-panel[hidden] {
+  display: none;
+}
+
+.task-objective {
+  color: var(--text);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.task-expand-button {
+  min-height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.task-expand-button:hover,
+.task-expand-button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
 .task-title-line {
   display: flex;
   flex-wrap: wrap;
