@@ -209,6 +209,17 @@ try {
   assert.equal(inbox.messages.length, 1);
   assert.equal(inbox.summary.total, 1);
 
+  const claimedThreadMessage = await postJson(
+    `${baseUrl}/api/projects/web-demo/thread-inbox/claim-next`,
+    {
+      processed_by: "codex-thread"
+    }
+  );
+  assert.equal(claimedThreadMessage.message.id, threadMessage.message.id);
+  assert.equal(claimedThreadMessage.message.status, "processing");
+  assert.equal(claimedThreadMessage.message.processed_by, "codex-thread");
+  assert.equal(claimedThreadMessage.dashboard.thread_inbox_summary.processing_ids.length, 1);
+
   const updatedThreadMessage = await postJson(
     `${baseUrl}/api/projects/web-demo/thread-inbox/${threadMessage.message.id}`,
     {
@@ -220,6 +231,14 @@ try {
   assert.equal(updatedThreadMessage.message.status, "replied");
   assert.equal(updatedThreadMessage.message.reply, "task-0001 当前等待执行。");
   assert.equal(updatedThreadMessage.dashboard.thread_inbox_summary.replied_ids.length, 1);
+
+  const noPendingThreadMessage = await postJson(
+    `${baseUrl}/api/projects/web-demo/thread-inbox/claim-next`,
+    {
+      processed_by: "codex-thread"
+    }
+  );
+  assert.equal(noPendingThreadMessage.message, null);
 
   const html = await getText(`${baseUrl}/`);
   assert.match(html, /Codex 控制中心/);

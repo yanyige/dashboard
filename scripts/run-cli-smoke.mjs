@@ -90,6 +90,129 @@ assert.deepEqual(refreshedProject.context.requirements.p0, [
   "Support README-driven context refresh."
 ]);
 
+const ownerBinding = jsonRun([
+  "set-project-owner",
+  "--project",
+  "cli-demo",
+  "--thread",
+  "cli-owner-thread",
+  "--name",
+  "CLI Owner Thread",
+  "--assigned-by",
+  "steward",
+  "--json"
+]);
+assert.equal(ownerBinding.project.owner_thread.thread_id, "cli-owner-thread");
+
+const ownerDashboard = jsonRun([
+  "show-project-dashboard",
+  "--project",
+  "cli-demo",
+  "--json"
+]);
+assert.match(ownerDashboard.dashboard.owner_thread_prompt, /claim-next-thread-message/);
+assert.match(ownerDashboard.dashboard.owner_thread_prompt, /reply-thread-message/);
+
+const createdThreadMessage = jsonRun([
+  "create-thread-message",
+  "--project",
+  "cli-demo",
+  "--sender-id",
+  "web-owner",
+  "--sender-name",
+  "Dashboard User",
+  "--content",
+  "请汇报 CLI 项目当前状态。",
+  "--json"
+]);
+assert.equal(createdThreadMessage.message.status, "pending");
+assert.equal(createdThreadMessage.message.owner_thread_id, "cli-owner-thread");
+
+const claimedThreadMessage = jsonRun([
+  "claim-next-thread-message",
+  "--project",
+  "cli-demo",
+  "--processed-by",
+  "cli-owner-thread",
+  "--json"
+]);
+assert.equal(claimedThreadMessage.message.id, createdThreadMessage.message.id);
+assert.equal(claimedThreadMessage.message.status, "processing");
+assert.equal(claimedThreadMessage.message.processed_by, "cli-owner-thread");
+
+const repliedThreadMessage = jsonRun([
+  "reply-thread-message",
+  "--project",
+  "cli-demo",
+  "--message",
+  createdThreadMessage.message.id,
+  "--processed-by",
+  "cli-owner-thread",
+  "--reply",
+  "CLI 项目已完成 Thread Inbox 领取和回复闭环验证。",
+  "--json"
+]);
+assert.equal(repliedThreadMessage.message.status, "replied");
+assert.equal(
+  repliedThreadMessage.dashboard.thread_inbox_summary.replied_ids[0],
+  createdThreadMessage.message.id
+);
+
+const noPendingThreadMessage = jsonRun([
+  "claim-next-thread-message",
+  "--project",
+  "cli-demo",
+  "--processed-by",
+  "cli-owner-thread",
+  "--json"
+]);
+assert.equal(noPendingThreadMessage.message, null);
+
+const failingThreadMessage = jsonRun([
+  "create-thread-message",
+  "--project",
+  "cli-demo",
+  "--sender-id",
+  "web-owner",
+  "--content",
+  "这条消息用于验证失败回写。",
+  "--json"
+]);
+const claimedFailingThreadMessage = jsonRun([
+  "claim-next-thread-message",
+  "--project",
+  "cli-demo",
+  "--processed-by",
+  "cli-owner-thread",
+  "--json"
+]);
+assert.equal(claimedFailingThreadMessage.message.id, failingThreadMessage.message.id);
+
+const failedThreadMessage = jsonRun([
+  "fail-thread-message",
+  "--project",
+  "cli-demo",
+  "--message",
+  failingThreadMessage.message.id,
+  "--processed-by",
+  "cli-owner-thread",
+  "--error",
+  "缺少外部项目上下文，等待人工补充。",
+  "--json"
+]);
+assert.equal(failedThreadMessage.message.status, "failed");
+assert.equal(failedThreadMessage.dashboard.thread_inbox_summary.failed_ids.length, 1);
+
+const listedThreadMessages = jsonRun([
+  "list-thread-messages",
+  "--project",
+  "cli-demo",
+  "--status",
+  "failed",
+  "--json"
+]);
+assert.equal(listedThreadMessages.messages.length, 1);
+
 const publishedTask = jsonRun([
   "publish-task",
   "--project",

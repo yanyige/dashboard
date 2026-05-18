@@ -227,6 +227,7 @@ npm run ccc -- list-agents
 npm run ccc -- list-projects
 npm run ccc -- list-tasks --project my-project
 npm run ccc -- list-claimable-tasks --project my-project
+npm run ccc -- list-thread-messages --project my-project
 npm run ccc -- show-task --project my-project --task task-0001
 npm run ccc -- show-project-dashboard --project my-project
 npm run ccc -- list-project-status --project my-project
@@ -304,13 +305,15 @@ POST /api/projects/:projectId/requirement-proposals/:proposalId/approve
 POST /api/projects/:projectId/requirement-proposals/:proposalId/reject
 GET  /api/projects/:projectId/thread-inbox
 POST /api/projects/:projectId/thread-inbox
+POST /api/projects/:projectId/thread-inbox/claim-next
 POST /api/projects/:projectId/thread-inbox/:messageId
 ```
 
-The Thread Inbox API is V2-lite plumbing. It records browser messages as
-project-scoped `pending` items with owner Thread metadata, then lets automation
-or a later bridge move them through `processing`, `replied`, or `failed` while
-preserving reply and error evidence.
+The Thread Inbox API records browser messages as project-scoped `pending` items
+with owner Thread metadata. A project owner Thread can claim the next pending
+message with `claim-next`, which marks it `processing` and records `processed_by`.
+It then writes the result back as `replied` or `failed`, preserving reply/error
+evidence and timestamps for audit.
 
 On the server deployment, the stable entrypoint is:
 
@@ -345,6 +348,10 @@ Project owner reports can include `--proposed-task` entries. Those entries are s
 ### Executor Agent
 
 Claims `ready` tasks that match its skills and writes an acceptance note, execution plan, and expected next report time into the task record. Claiming moves the task queue status from `ready` to `claimed`, so the overall PM can see who accepted the work and how it will proceed. The executor then works from the prepared execution package and proactively runs `deliver-task` after completion. That moves the task to `review` with delivery evidence and releases the executor's capacity, so the Agent can claim more work while the overall PM / Context Steward reviews the submitted delivery. Executor Agents must not run `accept-delivery` for their own work.
+
+### Thread Inbox Bridge
+
+Browser messages sent from a project page enter the project Thread Inbox as `pending`. A project owner Thread should periodically run `claim-next-thread-message --project <project> --processed-by <thread-id>` to reserve the oldest pending message, answer it with `reply-thread-message`, or mark it with `fail-thread-message` when context is missing. These commands only move messages through an auditable communication workflow; new work still enters the system through reviewed requirement proposals and task approval.
 
 ## Task States
 

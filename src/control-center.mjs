@@ -477,6 +477,88 @@ export class ControlCenter {
     return updatedMessage;
   }
 
+  claimProjectThreadMessage(input) {
+    requireFields(input, ["project_id", "processed_by"]);
+    this.assertProjectAcceptsWork(input.project_id, "claim project thread messages");
+
+    const message = input.message_id
+      ? this.getProjectThreadMessage(input.project_id, input.message_id)
+      : this.listProjectThreadMessages(input.project_id)
+          .filter((item) => item.status === "pending")
+          .sort(compareThreadMessagesForClaim)
+          .at(0);
+
+    if (!message) {
+      return null;
+    }
+    if (message.status !== "pending") {
+      throw new Error(
+        `Thread message ${message.id} is ${message.status}; only pending messages can be claimed`
+      );
+    }
+
+    const updatedMessage = this.updateProjectThreadMessage({
+      project_id: input.project_id,
+      message_id: message.id,
+      status: "processing",
+      processed_by: input.processed_by
+    });
+
+    this.appendEvent("thread_message.claimed", {
+      project_id: input.project_id,
+      message_id: updatedMessage.id,
+      processed_by: updatedMessage.processed_by
+    });
+
+    return updatedMessage;
+  }
+
+  replyProjectThreadMessage(input) {
+    requireFields(input, ["project_id", "message_id", "processed_by", "reply"]);
+    this.assertProjectAcceptsWork(input.project_id, "reply to project thread messages");
+    this.assertThreadMessageProcessor(input);
+
+    const updatedMessage = this.updateProjectThreadMessage({
+      project_id: input.project_id,
+      message_id: input.message_id,
+      status: "replied",
+      processed_by: input.processed_by,
+      reply: input.reply,
+      error: null
+    });
+
+    this.appendEvent("thread_message.replied", {
+      project_id: input.project_id,
+      message_id: updatedMessage.id,
+      processed_by: updatedMessage.processed_by
+    });
+
+    return updatedMessage;
+  }
+
+  failProjectThreadMessage(input) {
+    requireFields(input, ["project_id", "message_id", "processed_by", "error"]);
+    this.assertProjectAcceptsWork(input.project_id, "fail project thread messages");
+    this.assertThreadMessageProcessor(input);
+
+    const updatedMessage = this.updateProjectThreadMessage({
+      project_id: input.project_id,
+      message_id: input.message_id,
+      status: "failed",
+      processed_by: input.processed_by,
+      reply: null,
+      error: input.error
+    });
+
+    this.appendEvent("thread_message.failed", {
+      project_id: input.project_id,
+      message_id: updatedMessage.id,
+      processed_by: updatedMessage.processed_by
+    });
+
+    return updatedMessage;
+  }
+
   createRequirementProposal(input) {
     requireFields(input, ["project_id", "title", "objective"]);
     this.assertProjectAcceptsWork(input.project_id, "create requirement proposals");
@@ -1799,6 +1881,20 @@ export class ControlCenter {
     }
   }
 
+  assertThreadMessageProcessor(input) {
+    const message = this.getProjectThreadMessage(input.project_id, input.message_id);
+    if (message.status !== "processing") {
+      throw new Error(
+        `Thread message ${message.id} is ${message.status}; claim it before writing a result`
+      );
+    }
+    if (message.processed_by && message.processed_by !== input.processed_by) {
+      throw new Error(
+        `Thread message ${message.id} is assigned to ${message.processed_by}, not ${input.processed_by}`
+      );
+    }
+  }
+
   getTaskDependencyState(projectId, task) {
     const dependencies = uniqueStrings(task.dependencies ?? []);
     const blockedBy = [];
@@ -2405,6 +2501,33 @@ function buildProjectOwnerThreadPrompt({ project, context, ownerThread }) {
     "",
     `ssh root@121.40.207.7 'dashboard-ccc show-project-dashboard --project ${project.id} --json'`,
     "",
+    "浏览器项目聊天消息处理：",
+    "",
+    "每次定时检查时，先尝试领取 Dashboard 项目页里发给你的 pending 消息：",
+    "",
+    "ssh root@121.40.207.7 'dashboard-ccc claim-next-thread-message \\",
+    `  --project ${project.id} \\`,
+    `  --processed-by ${threadId} \\`,
+    "  --json'",
+    "",
+    "如果返回 message 不为空，读取 message.content，基于你掌握的项目上下文回答，然后回写处理结果：",
+    "",
+    "ssh root@121.40.207.7 'dashboard-ccc reply-thread-message \\",
+    `  --project ${project.id} \\`,
+    "  --message <thread-message-id> \\",
+    `  --processed-by ${threadId} \\`,
+    "  --reply \"这里写你对浏览器消息的回复\"'",
+    "",
+    "如果暂时无法处理或缺少信息，回写失败原因，后续可以重新由人介入：",
+    "",
+    "ssh root@121.40.207.7 'dashboard-ccc fail-thread-message \\",
+    `  --project ${project.id} \\`,
+    "  --message <thread-message-id> \\",
+    `  --processed-by ${threadId} \\`,
+    "  --error \"这里写无法处理的具体原因\"'",
+    "",
+    "聊天消息只用于沟通和审计。不要把用户聊天直接当成已批准需求；如果消息里包含新需求，你需要在 owner-report 里提出 proposed-task，等待人类审核。",
+    "",
     "如果 README 或项目文件比控制中心上下文更新，请刷新上下文：",
     "",
     `ssh root@121.40.207.7 'dashboard-ccc refresh-project-context --project ${project.id} --updated-by ${threadId}'`,
@@ -2427,12 +2550,13 @@ function buildProjectOwnerThreadPrompt({ project, context, ownerThread }) {
     "请在这个 Codex Thread 中设置一个每 10 分钟运行的自动检查。每次醒来后按下面顺序执行：",
     "",
     `1. 读取项目状态：ssh root@121.40.207.7 'dashboard-ccc show-project-dashboard --project ${project.id} --json'`,
-    "2. 如果你已经有 claimed/in_progress 任务，就继续执行该任务，并用 owner-report 写进度、风险和下一步。",
-    "3. 如果没有 active 任务，先查看是否有可领取任务：",
+    "2. 领取并处理一条 pending 项目聊天消息：claim-next-thread-message；处理完成后用 reply-thread-message 或 fail-thread-message 回写。",
+    "3. 如果你已经有 claimed/in_progress 任务，就继续执行该任务，并用 owner-report 写进度、风险和下一步。",
+    "4. 如果没有 active 任务，先查看是否有可领取任务：",
     "",
     `ssh root@121.40.207.7 'dashboard-ccc list-claimable-tasks --project ${project.id} --agent ${threadId} --json'`,
     "",
-    "4. 如果存在 claimable 任务，领取最高优先级任务并立刻开始：",
+    "5. 如果存在 claimable 任务，领取最高优先级任务并立刻开始：",
     "",
     "ssh root@121.40.207.7 'dashboard-ccc claim-next-task \\",
     `  --project ${project.id} \\`,
@@ -2448,8 +2572,8 @@ function buildProjectOwnerThreadPrompt({ project, context, ownerThread }) {
     "  --task <task-id> \\",
     `  --agent ${threadId}'`,
     "",
-    "5. 执行任务时必须阅读 task 的 handoff_prompt、acceptance_criteria、deliverables、context_summary 和相关仓库文件。",
-    "6. 任务完成后提交交付证据，不要自己验收：",
+    "6. 执行任务时必须阅读 task 的 handoff_prompt、acceptance_criteria、deliverables、context_summary 和相关仓库文件。",
+    "7. 任务完成后提交交付证据，不要自己验收：",
     "",
     "ssh root@121.40.207.7 'dashboard-ccc deliver-task \\",
     `  --project ${project.id} \\`,
@@ -2461,8 +2585,8 @@ function buildProjectOwnerThreadPrompt({ project, context, ownerThread }) {
     "  --ai-detection-status passed \\",
     "  --ai-detection-summary \"执行 Agent 对交付质量、风险和遗漏项的自检结论\"'",
     "",
-    "7. 如果没有可领取任务，不要为了填充任务而自行编造任务；只提交真实 owner-report，并在确有必要时提出 proposed-task 等待人工审核。",
-    "8. 如果你提出的需求还在 pending，等待人类 owner 审核；不要自己 approve-requirement-proposal。",
+    "8. 如果没有可领取任务，不要为了填充任务而自行编造任务；只提交真实 owner-report，并在确有必要时提出 proposed-task 等待人工审核。",
+    "9. 如果你提出的需求还在 pending，等待人类 owner 审核；不要自己 approve-requirement-proposal。",
     "",
     "你每次输出给用户时，说明：owner report id、当前健康状态、是否领取/启动了任务、是否提交了 delivery、当前风险和需要人类审核的需求。"
   ].join("\n");
@@ -2973,6 +3097,15 @@ function summarizeThreadMessages(messages) {
       .filter((message) => message.status === "failed")
       .map((message) => message.id)
   };
+}
+
+function compareThreadMessagesForClaim(left, right) {
+  const leftCreated = left.created_at ?? "";
+  const rightCreated = right.created_at ?? "";
+  if (leftCreated !== rightCreated) {
+    return leftCreated.localeCompare(rightCreated);
+  }
+  return left.id.localeCompare(right.id);
 }
 
 function deriveProjectHealth({ project, taskSummary, risks, blockers }) {

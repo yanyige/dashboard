@@ -284,6 +284,24 @@ async function handleApi({ center, request, response, url }) {
     return;
   }
 
+  const threadInboxClaimNextMatch = url.pathname.match(
+    /^\/api\/projects\/([^/]+)\/thread-inbox\/claim-next$/
+  );
+  if (request.method === "POST" && threadInboxClaimNextMatch) {
+    const projectId = decodeURIComponent(threadInboxClaimNextMatch[1]);
+    const body = await readJsonBody(request);
+    const message = center.claimProjectThreadMessage({
+      project_id: projectId,
+      message_id: body.message_id,
+      processed_by: body.processed_by ?? body.agent_id ?? body.thread_id
+    });
+    sendJson(response, 200, {
+      message,
+      dashboard: center.getProjectDashboard(projectId)
+    });
+    return;
+  }
+
   const threadMessageMatch = url.pathname.match(
     /^\/api\/projects\/([^/]+)\/thread-inbox\/([^/]+)$/
   );

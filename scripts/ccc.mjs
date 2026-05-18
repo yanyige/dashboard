@@ -26,6 +26,16 @@ Commands:
   owner-report      Submit a project owner Thread status report and optional reported context
   list-owner-reports
                     List project owner Thread status reports
+  create-thread-message
+                    Create a project owner Thread inbox message
+  list-thread-messages
+                    List project owner Thread inbox messages
+  claim-next-thread-message
+                    Claim the next pending project owner Thread inbox message
+  reply-thread-message
+                    Mark a claimed project owner Thread inbox message as replied
+  fail-thread-message
+                    Mark a claimed project owner Thread inbox message as failed
   list-requirement-proposals
                     List project requirement proposals waiting for review
   approve-requirement-proposal
@@ -81,6 +91,12 @@ const handlers = {
   "owner-report": handleOwnerReport,
   "submit-owner-report": handleOwnerReport,
   "list-owner-reports": handleListOwnerReports,
+  "create-thread-message": handleCreateThreadMessage,
+  "list-thread-messages": handleListThreadMessages,
+  "claim-thread-message": handleClaimThreadMessage,
+  "claim-next-thread-message": handleClaimThreadMessage,
+  "reply-thread-message": handleReplyThreadMessage,
+  "fail-thread-message": handleFailThreadMessage,
   "list-requirement-proposals": handleListRequirementProposals,
   "approve-requirement-proposal": handleApproveRequirementProposal,
   "reject-requirement-proposal": handleRejectRequirementProposal,
@@ -264,6 +280,80 @@ function handleOwnerReport(center, flags) {
 
 function handleListOwnerReports(center, flags) {
   return { owner_reports: center.listProjectOwnerReports(projectFlag(flags)) };
+}
+
+function handleCreateThreadMessage(center, flags) {
+  const projectId = projectFlag(flags);
+  const message = center.createProjectThreadMessage({
+    project_id: projectId,
+    sender_id: stringFlag(flags, "sender-id", "sender") ?? "web-owner",
+    sender_name: stringFlag(flags, "sender-name", "name"),
+    content: requiredAnyFlag(flags, "content", "message", "body")
+  });
+
+  return {
+    message,
+    dashboard: center.getProjectDashboard(projectId)
+  };
+}
+
+function handleListThreadMessages(center, flags) {
+  const status = stringFlag(flags, "status");
+  const processedBy = stringFlag(flags, "processed-by", "agent", "thread");
+  let messages = center.listProjectThreadMessages(projectFlag(flags));
+
+  if (status) {
+    messages = messages.filter((message) => message.status === status);
+  }
+  if (processedBy) {
+    messages = messages.filter((message) => message.processed_by === processedBy);
+  }
+
+  return { messages };
+}
+
+function handleClaimThreadMessage(center, flags) {
+  const projectId = projectFlag(flags);
+  const message = center.claimProjectThreadMessage({
+    project_id: projectId,
+    message_id: stringFlag(flags, "message", "message-id"),
+    processed_by: requiredAnyFlag(flags, "processed-by", "agent", "thread")
+  });
+
+  return {
+    message,
+    dashboard: center.getProjectDashboard(projectId)
+  };
+}
+
+function handleReplyThreadMessage(center, flags) {
+  const projectId = projectFlag(flags);
+  const message = center.replyProjectThreadMessage({
+    project_id: projectId,
+    message_id: messageFlag(flags),
+    processed_by: requiredAnyFlag(flags, "processed-by", "agent", "thread"),
+    reply: requiredAnyFlag(flags, "reply", "content", "message")
+  });
+
+  return {
+    message,
+    dashboard: center.getProjectDashboard(projectId)
+  };
+}
+
+function handleFailThreadMessage(center, flags) {
+  const projectId = projectFlag(flags);
+  const message = center.failProjectThreadMessage({
+    project_id: projectId,
+    message_id: messageFlag(flags),
+    processed_by: requiredAnyFlag(flags, "processed-by", "agent", "thread"),
+    error: requiredAnyFlag(flags, "error", "reason")
+  });
+
+  return {
+    message,
+    dashboard: center.getProjectDashboard(projectId)
+  };
 }
 
 function handleListRequirementProposals(center, flags) {
@@ -591,6 +681,36 @@ function printResult(command, result, flags) {
         ["id", "thread", "health", "answered_at", "summary"]
       );
       break;
+    case "create-thread-message":
+      console.log(`created thread message ${result.message.id} (${result.message.status})`);
+      break;
+    case "list-thread-messages":
+      printRows(
+        result.messages.map((message) => [
+          message.id,
+          message.status,
+          message.sender_id,
+          message.processed_by ?? "-",
+          message.updated_at,
+          message.content
+        ]),
+        ["id", "status", "sender", "processed_by", "updated_at", "content"]
+      );
+      break;
+    case "claim-thread-message":
+    case "claim-next-thread-message":
+      if (result.message) {
+        console.log(`claimed thread message ${result.message.id} by ${result.message.processed_by}`);
+      } else {
+        console.log("no pending thread messages");
+      }
+      break;
+    case "reply-thread-message":
+      console.log(`replied to thread message ${result.message.id}`);
+      break;
+    case "fail-thread-message":
+      console.log(`failed thread message ${result.message.id}`);
+      break;
     case "list-requirement-proposals":
       printRows(
         result.requirement_proposals.map((proposal) => [
@@ -806,6 +926,10 @@ function projectFlag(flags) {
 
 function taskFlag(flags) {
   return requiredAnyFlag(flags, "task", "task-id");
+}
+
+function messageFlag(flags) {
+  return requiredAnyFlag(flags, "message", "message-id");
 }
 
 function requiredFlag(flags, name) {
