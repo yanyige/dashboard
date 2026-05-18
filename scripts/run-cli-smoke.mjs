@@ -46,6 +46,18 @@ run([
   "node,workflow"
 ]);
 
+run([
+  "register-agent",
+  "--id",
+  "reviewer",
+  "--name",
+  "Delivery Reviewer",
+  "--role",
+  "reviewer",
+  "--skills",
+  "review,qa"
+]);
+
 const createdProject = jsonRun([
   "create-project",
   "--id",
@@ -208,6 +220,8 @@ const acceptedDelivery = jsonRun([
   publishedTask.task.id,
   "--steward",
   "steward",
+  "--reviewer",
+  "reviewer",
   "--context-update",
   "CLI lifecycle commands are verified by a smoke test.",
   "--review-summary",
@@ -216,7 +230,10 @@ const acceptedDelivery = jsonRun([
 ]);
 assert.equal(acceptedDelivery.task.status, "done");
 assert.equal(acceptedDelivery.delivery.status, "accepted");
-assert.equal(acceptedDelivery.delivery.review.reviewed_by, "steward");
+assert.equal(acceptedDelivery.task.reviewed_by, "reviewer");
+assert.equal(acceptedDelivery.task.context_updated_by, "steward");
+assert.equal(acceptedDelivery.delivery.review.reviewed_by, "reviewer");
+assert.equal(acceptedDelivery.delivery.review.context_steward_id, "steward");
 assert.equal(acceptedDelivery.project.current_context_snapshot_id, "context-0003");
 assert.equal(acceptedDelivery.followup_tasks.length, 1);
 

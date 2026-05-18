@@ -216,6 +216,7 @@ npm run ccc -- accept-delivery \
   --project my-project \
   --task task-0001 \
   --steward steward \
+  --reviewer reviewer \
   --context-update "The project now has first-pass operating notes."
 ```
 
@@ -327,6 +328,10 @@ HOST=0.0.0.0 PORT=3000 CCC_ROOT=/opt/dashboard/data/workspace node /opt/dashboar
 ### Context Steward
 
 Maintains project context and prepares tasks before execution. In the preferred operating model, this Codex thread can act as the Context Steward. It decides whether a task is clear enough to become `ready`, attaches the relevant context snapshot, defines acceptance criteria, updates project context after accepted delivery, and writes periodic project status snapshots.
+
+### Reviewer
+
+Reviews submitted delivery evidence and records the review decision, method, and conclusion. A Reviewer can be separate from the Context Steward: `accept-delivery` still requires `--steward` for context advancement, and can also receive `--reviewer` to record who made the delivery review decision.
 
 ### Requirement Proposal Review
 

@@ -919,6 +919,11 @@ export class ControlCenter {
     if (steward.role !== "context_steward") {
       throw new Error(`Agent is not a context steward: ${input.steward_id}`);
     }
+    const reviewerId = input.reviewer_id ?? input.steward_id;
+    const reviewer = this.getAgent(reviewerId);
+    if (!["context_steward", "reviewer"].includes(reviewer.role)) {
+      throw new Error(`Agent cannot review deliveries: ${reviewerId}`);
+    }
 
     const project = this.getProject(input.project_id);
     const task = this.getTask(input.project_id, input.task_id);
@@ -952,6 +957,7 @@ export class ControlCenter {
         {
           at: now(),
           by: input.steward_id,
+          reviewer_id: reviewer.id,
           task_id: task.id,
           note: input.context_update
         }
@@ -962,7 +968,8 @@ export class ControlCenter {
     const doneTask = {
       ...task,
       status: "done",
-      reviewed_by: input.steward_id,
+      reviewed_by: reviewer.id,
+      context_updated_by: steward.id,
       completed_at: now(),
       updated_at: now()
     };
@@ -970,12 +977,14 @@ export class ControlCenter {
     const acceptedDelivery = {
       ...delivery,
       status: "accepted",
-      accepted_by: input.steward_id,
+      accepted_by: reviewer.id,
       accepted_at: now(),
+      context_steward_id: steward.id,
       review: {
         decision: "accepted",
-        reviewed_by: input.steward_id,
+        reviewed_by: reviewer.id,
         reviewed_at: now(),
+        context_steward_id: steward.id,
         method: input.review_method ?? "context_steward_review",
         summary:
           input.review_summary ??
@@ -1016,7 +1025,7 @@ export class ControlCenter {
         required_skills: followup.required_skills ?? [],
         dependencies: followup.dependencies ?? [],
         parallel_group: followup.parallel_group ?? "default",
-        created_by: input.steward_id
+        created_by: steward.id
       })
     );
 
@@ -1029,6 +1038,8 @@ export class ControlCenter {
     this.appendEvent("delivery.accepted", {
       project_id: input.project_id,
       task_id: input.task_id,
+      reviewer_id: reviewer.id,
+      context_steward_id: steward.id,
       next_context_snapshot_id: nextContext.id,
       followup_task_ids: followupTasks.map((followup) => followup.id),
       stale_task_ids: staleTasks.map((staleTask) => staleTask.id)
@@ -2830,6 +2841,8 @@ function normalizeDeliveryReview(delivery) {
       decision: delivery.review.decision ?? delivery.status,
       reviewed_by: delivery.review.reviewed_by ?? delivery.accepted_by ?? null,
       reviewed_at: delivery.review.reviewed_at ?? delivery.accepted_at ?? null,
+      context_steward_id:
+        delivery.review.context_steward_id ?? delivery.context_steward_id ?? null,
       method: delivery.review.method ?? "context_steward_review",
       summary: delivery.review.summary ?? "",
       context_update: delivery.review.context_update ?? "",
@@ -2844,6 +2857,7 @@ function normalizeDeliveryReview(delivery) {
       decision: delivery.status,
       reviewed_by: delivery.accepted_by ?? null,
       reviewed_at: delivery.accepted_at ?? null,
+      context_steward_id: delivery.context_steward_id ?? delivery.accepted_by ?? null,
       method: "context_steward_review",
       summary: "",
       context_update: "",

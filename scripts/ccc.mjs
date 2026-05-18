@@ -467,6 +467,7 @@ function handleAcceptDelivery(center, flags) {
     project_id: projectId,
     task_id: taskId,
     steward_id: requiredAnyFlag(flags, "steward", "steward-id"),
+    reviewer_id: stringFlag(flags, "reviewer", "reviewer-id"),
     context_update: requiredAnyFlag(flags, "context-update", "update"),
     review_method: stringFlag(flags, "review-method"),
     review_summary: stringFlag(flags, "review-summary", "review-note"),

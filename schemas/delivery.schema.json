@@ -19,6 +19,7 @@
     "task_id": { "type": "string" },
     "agent_id": { "type": "string" },
     "context_snapshot_id": { "type": ["string", "null"] },
+    "context_steward_id": { "type": "string" },
     "summary": { "type": "string" },
     "files_changed": {
       "type": "array",
@@ -48,6 +49,7 @@
         "decision": { "type": "string" },
         "reviewed_by": { "type": "string" },
         "reviewed_at": { "type": "string" },
+        "context_steward_id": { "type": "string" },
         "method": { "type": "string" },
         "summary": { "type": "string" },
         "context_update": { "type": "string" },
