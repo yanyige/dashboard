@@ -58,6 +58,17 @@
     },
     "assigned_agent_id": {
       "type": ["string", "null"]
+    },
+    "agent_acceptance": {
+      "type": ["object", "null"],
+      "properties": {
+        "agent_id": { "type": "string" },
+        "accepted_at": { "type": "string" },
+        "note": { "type": "string" },
+        "plan": { "type": "string" },
+        "eta": { "type": "string" },
+        "next_report_at": { "type": "string" }
+      }
     }
   }
 }

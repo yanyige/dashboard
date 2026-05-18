@@ -131,6 +131,7 @@ function validateTask(value, errors) {
   optionalArrayOfStrings(value, "dependencies", errors);
   optionalString(value, "parallel_group", errors);
   optionalStringOrNull(value, "assigned_agent_id", errors);
+  optionalAgentAcceptance(value, "agent_acceptance", errors);
   arrayOfStrings(value, "acceptance_criteria", errors);
   arrayOfStrings(value, "deliverables", errors);
   optionalString(value, "created_by", errors);
@@ -305,6 +306,20 @@ function optionalOwnerThread(value, field, errors) {
   optionalString(value[field], "assigned_by", errors);
   optionalString(value[field], "assigned_at", errors);
   optionalString(value[field], "updated_at", errors);
+}
+
+function optionalAgentAcceptance(value, field, errors) {
+  if (value?.[field] === undefined || value?.[field] === null) {
+    return;
+  }
+
+  objectValue(value, field, errors);
+  requiredString(value[field], "agent_id", errors);
+  requiredString(value[field], "accepted_at", errors);
+  optionalString(value[field], "note", errors);
+  optionalString(value[field], "plan", errors);
+  optionalString(value[field], "eta", errors);
+  optionalString(value[field], "next_report_at", errors);
 }
 
 function optionalOwnerReportContext(value, field, errors) {

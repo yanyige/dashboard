@@ -431,6 +431,7 @@ function createTaskCard(task, { active }) {
 
     ${renderTaskBrief(task)}
     ${renderTaskMeta(task)}
+    ${renderAgentAcceptanceBlock(task)}
     ${renderTaskDetailGrid(task, active)}
     ${renderAgentCommandBlock(task)}
     ${renderDeliveryBlock(task)}
@@ -480,6 +481,33 @@ function renderTaskMeta(task) {
           <span>${escapeHtml(label)}</span>
           <strong>${escapeHtml(value)}</strong>
         </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderAgentAcceptanceBlock(task) {
+  const acceptance = task.agent_acceptance;
+  if (!acceptance) {
+    return "";
+  }
+
+  const rows = [
+    ["接收说明", acceptance.note],
+    ["执行计划", acceptance.plan],
+    ["预计回报", acceptance.eta || acceptance.next_report_at],
+    ["接收时间", formatDate(acceptance.accepted_at)]
+  ].filter(([, value]) => value);
+
+  if (rows.length === 0) {
+    return "";
+  }
+
+  return `
+    <div class="agent-acceptance-block">
+      <span>Agent 接收回报</span>
+      ${rows.map(([label, value]) => `
+        <p><strong>${escapeHtml(label)}：</strong>${escapeHtml(value)}</p>
       `).join("")}
     </div>
   `;
@@ -604,9 +632,9 @@ function getAgentNextAction(task) {
   if (task.status === "ready") {
     return {
       commandKey: "claim",
-      title: "领取任务",
-      description: "把任务分配给执行 Agent，之后再启动执行。",
-      buttonLabel: "复制领取命令"
+      title: "接受任务并上报计划",
+      description: "执行 Agent 领取任务时需要把接收说明、执行计划和预计回报时间写入任务队列。",
+      buttonLabel: "复制接受任务命令"
     };
   }
 
@@ -614,7 +642,7 @@ function getAgentNextAction(task) {
     return {
       commandKey: "start",
       title: "启动任务",
-      description: "执行 Agent 开始工作；完成后必须提交验收，不能自审。",
+      description: "任务已由 Agent 接受；启动后进入正在完成，完成后必须提交验收，不能自审。",
       buttonLabel: "复制启动命令"
     };
   }

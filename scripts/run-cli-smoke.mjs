@@ -135,9 +135,23 @@ const claimedTask = jsonRun([
   "cli-demo",
   "--agent",
   "builder",
+  "--acceptance-note",
+  "Builder accepted the CLI smoke lifecycle task.",
+  "--plan",
+  "Claim, start, deliver, and wait for steward acceptance.",
+  "--eta",
+  "Immediate smoke run.",
   "--json"
 ]);
 assert.equal(claimedTask.task.status, "claimed");
+assert.equal(
+  claimedTask.task.agent_acceptance.note,
+  "Builder accepted the CLI smoke lifecycle task."
+);
+assert.equal(
+  claimedTask.task.agent_acceptance.plan,
+  "Claim, start, deliver, and wait for steward acceptance."
+);
 
 const startedTask = jsonRun([
   "start-task",

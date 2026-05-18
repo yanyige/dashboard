@@ -580,6 +580,7 @@ h4 {
 
 .task-brief span,
 .task-meta-grid span,
+.agent-acceptance-block span,
 .agent-command-block span,
 .delivery-block span {
   color: var(--muted);
@@ -635,6 +636,7 @@ h4 {
 }
 
 .agent-command-block,
+.agent-acceptance-block,
 .delivery-block {
   min-width: 0;
   border-top: 1px solid var(--border);
@@ -649,18 +651,25 @@ h4 {
 }
 
 .agent-command-block div,
+.agent-acceptance-block,
 .delivery-block {
   display: grid;
   gap: 6px;
 }
 
+.agent-acceptance-block p,
 .agent-command-block strong,
 .delivery-block strong {
-  font-size: 14px;
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
 
+.agent-command-block strong,
+.delivery-block strong {
+  font-size: 14px;
+}
+
+.agent-acceptance-block p,
 .agent-command-block p,
 .delivery-block p {
   color: var(--text);

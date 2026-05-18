@@ -197,7 +197,12 @@ Execute and accept:
 
 ```bash
 npm run ccc -- list-claimable-tasks --project my-project --agent builder
-npm run ccc -- claim-next-task --project my-project --agent builder
+npm run ccc -- claim-next-task \
+  --project my-project \
+  --agent builder \
+  --acceptance-note "I understand the task and am taking ownership now." \
+  --plan "Implement the change, run verification, then submit delivery evidence." \
+  --eta "Next report within 30 minutes."
 npm run ccc -- start-task --project my-project --task task-0001 --agent builder
 npm run ccc -- deliver-task \
   --project my-project \
@@ -312,7 +317,7 @@ Maintains project context and prepares tasks before execution. In the preferred 
 
 ### Executor Agent
 
-Claims `ready` tasks that match its skills, works from the prepared execution package, and proactively runs `deliver-task` after completion. That moves the task to `review` with delivery evidence so the overall PM / Context Steward can accept or send it back. Executor Agents must not run `accept-delivery` for their own work.
+Claims `ready` tasks that match its skills and writes an acceptance note, execution plan, and expected next report time into the task record. Claiming moves the task queue status from `ready` to `claimed`, so the overall PM can see who accepted the work and how it will proceed. The executor then works from the prepared execution package and proactively runs `deliver-task` after completion. That moves the task to `review` with delivery evidence so the overall PM / Context Steward can accept or send it back. Executor Agents must not run `accept-delivery` for their own work.
 
 ## Task States
 

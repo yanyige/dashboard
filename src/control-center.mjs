@@ -535,12 +535,21 @@ export class ControlCenter {
     this.assertAgentCanAcceptTask(agent);
     this.assertTaskCanBeClaimed(input.project_id, task, agent);
 
+    const claimedAt = now();
     const claimedTask = {
       ...task,
       status: "claimed",
       assigned_agent_id: agent.id,
-      claimed_at: now(),
-      updated_at: now()
+      claimed_at: claimedAt,
+      agent_acceptance: normalizeAgentAcceptance({
+        agent_id: agent.id,
+        accepted_at: claimedAt,
+        note: input.acceptance_note ?? input.note,
+        plan: input.plan,
+        eta: input.eta,
+        next_report_at: input.next_report_at
+      }),
+      updated_at: claimedAt
     };
 
     this.writeRecord(
@@ -552,7 +561,8 @@ export class ControlCenter {
     this.appendEvent("task.claimed", {
       project_id: input.project_id,
       task_id: input.task_id,
-      agent_id: agent.id
+      agent_id: agent.id,
+      agent_acceptance: claimedTask.agent_acceptance
     });
 
     return claimedTask;
@@ -574,7 +584,12 @@ export class ControlCenter {
     return this.claimTask({
       project_id: input.project_id,
       task_id: nextTask.id,
-      agent_id: input.agent_id
+      agent_id: input.agent_id,
+      acceptance_note: input.acceptance_note,
+      note: input.note,
+      plan: input.plan,
+      eta: input.eta,
+      next_report_at: input.next_report_at
     });
   }
 
@@ -1220,6 +1235,7 @@ export class ControlCenter {
         reviewed_by: task.reviewed_by ?? null,
         reviewed_at: task.reviewed_at ?? null,
         rejection_reason: task.rejection_reason ?? null,
+        agent_acceptance: task.agent_acceptance ?? null,
         dependencies: dependencyState.dependencies,
         blocked_by: dependencyState.blocked_by,
         is_claimable: claimability.claimable,
@@ -1717,12 +1733,14 @@ function buildHandoffPrompt({
     `Deliverables: ${deliverables.join("; ") || "Not specified"}`,
     "",
     "Agent operating contract:",
-    "1. Claim and start the task before editing.",
-    "2. When the work is complete, proactively submit it for review with `deliver-task`.",
-    "3. `deliver-task` changes the task status to `review`; do not run `accept-delivery` yourself.",
-    "4. The overall PM / Context Steward reviews the delivery evidence and accepts or sends it back.",
+    "1. Claim the task before editing and include your acceptance note, plan, and next report time.",
+    "2. Claiming changes the queue status to `claimed`, so the overall PM can see you accepted the work.",
+    "3. Start the task when you begin implementation.",
+    "4. When the work is complete, proactively submit it for review with `deliver-task`.",
+    "5. `deliver-task` changes the task status to `review`; do not run `accept-delivery` yourself.",
+    "6. The overall PM / Context Steward reviews the delivery evidence and accepts or sends it back.",
     "",
-    "Claim:",
+    "Accept and claim the task:",
     commands.claim,
     "",
     "Start:",
@@ -1743,7 +1761,15 @@ function buildAgentTaskCommands({ projectId, taskId, agentId }) {
   const agentArg = shellArg(agent);
 
   return {
-    claim: `${commandPrefix} claim-task --project ${projectArg} --task ${taskArg} --agent ${agentArg}`,
+    claim: [
+      `${commandPrefix} claim-task \\`,
+      `  --project ${projectArg} \\`,
+      `  --task ${taskArg} \\`,
+      `  --agent ${agentArg} \\`,
+      `  --acceptance-note "<告诉总项目经理：你已接收任务、理解目标和当前状态>" \\`,
+      `  --plan "<你的执行计划、关键步骤和风险>" \\`,
+      `  --eta "<预计完成或下一次回报时间>"`
+    ].join("\n"),
     start: `${commandPrefix} start-task --project ${projectArg} --task ${taskArg} --agent ${agentArg}`,
     submit_for_review: [
       `${commandPrefix} deliver-task \\`,
@@ -1761,6 +1787,19 @@ function buildAgentTaskCommands({ projectId, taskId, agentId }) {
 
 function shellArg(value) {
   return `'${String(value).replace(/'/g, "'\\''")}'`;
+}
+
+function normalizeAgentAcceptance(input = {}) {
+  return {
+    agent_id: input.agent_id,
+    accepted_at: input.accepted_at ?? now(),
+    note:
+      input.note ??
+      "Agent accepted the task and must keep the overall PM updated through task status changes.",
+    plan: input.plan ?? "",
+    eta: input.eta ?? "",
+    next_report_at: input.next_report_at ?? ""
+  };
 }
 
 function requireFields(value, fields) {

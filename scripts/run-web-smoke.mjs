@@ -130,6 +130,7 @@ try {
     (task) => task.id === approvedDraft.id
   );
   assert.match(approvedTaskIndex.context.handoff_prompt, /submit it for review/);
+  assert.match(approvedTaskIndex.agent_commands.claim, /acceptance-note/);
   assert.match(approvedTaskIndex.agent_commands.submit_for_review, /deliver-task/);
 
   const rejected = await postJson(

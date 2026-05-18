@@ -366,7 +366,11 @@ function handleClaimTask(center, flags) {
   const task = center.claimTask({
     project_id: projectFlag(flags),
     task_id: taskFlag(flags),
-    agent_id: requiredAnyFlag(flags, "agent", "agent-id")
+    agent_id: requiredAnyFlag(flags, "agent", "agent-id"),
+    acceptance_note: stringFlag(flags, "acceptance-note", "note"),
+    plan: stringFlag(flags, "plan"),
+    eta: stringFlag(flags, "eta"),
+    next_report_at: stringFlag(flags, "next-report-at")
   });
 
   return { task };
@@ -375,7 +379,11 @@ function handleClaimTask(center, flags) {
 function handleClaimNextTask(center, flags) {
   const task = center.claimNextTask({
     project_id: projectFlag(flags),
-    agent_id: requiredAnyFlag(flags, "agent", "agent-id")
+    agent_id: requiredAnyFlag(flags, "agent", "agent-id"),
+    acceptance_note: stringFlag(flags, "acceptance-note", "note"),
+    plan: stringFlag(flags, "plan"),
+    eta: stringFlag(flags, "eta"),
+    next_report_at: stringFlag(flags, "next-report-at")
   });
 
   return { task };
@@ -610,6 +618,9 @@ function printResult(command, result, flags) {
       console.log(
         `claimed task ${result.task.id} by ${result.task.assigned_agent_id}`
       );
+      if (result.task.agent_acceptance?.note) {
+        console.log(`acceptance note: ${result.task.agent_acceptance.note}`);
+      }
       break;
     case "start-task":
       console.log(`started task ${result.task.id}`);
