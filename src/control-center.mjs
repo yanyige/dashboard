@@ -969,13 +969,25 @@ export class ControlCenter {
     const project = this.getProject(projectId);
     const context = this.getContext(projectId, project.current_context_snapshot_id);
     const repoPath = context.repo_path;
+
+    if (readmePath) {
+      if (!repoPath && !isAbsolute(readmePath)) {
+        throw new Error(
+          `Project has no local repo_path for relative README refresh: ${projectId}`
+        );
+      }
+      const resolvedPath = resolveReadmePath(repoPath ?? "", readmePath);
+      return {
+        path: resolvedPath,
+        content: readFileSync(resolvedPath, "utf8")
+      };
+    }
+
     if (!repoPath) {
       throw new Error(`Project has no local repo_path for README refresh: ${projectId}`);
     }
 
-    const resolvedPath = readmePath
-      ? resolveReadmePath(repoPath, readmePath)
-      : findReadmePath(repoPath);
+    const resolvedPath = findReadmePath(repoPath);
     if (!resolvedPath) {
       throw new Error(`No README file found in ${repoPath}`);
     }
