@@ -579,7 +579,9 @@ h4 {
 }
 
 .task-brief span,
-.task-meta-grid span {
+.task-meta-grid span,
+.agent-command-block span,
+.delivery-block span {
   color: var(--muted);
   font-size: 12px;
   font-weight: 850;
@@ -629,6 +631,40 @@ h4 {
 
 .task-info-block li {
   line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.agent-command-block,
+.delivery-block {
+  min-width: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.agent-command-block {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.agent-command-block div,
+.delivery-block {
+  display: grid;
+  gap: 6px;
+}
+
+.agent-command-block strong,
+.delivery-block strong {
+  font-size: 14px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.agent-command-block p,
+.delivery-block p {
+  color: var(--text);
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 
@@ -733,8 +769,10 @@ h4 {
   .panel-header,
   .section-heading,
   .owner-thread-line,
-  .task-row-header {
+  .task-row-header,
+  .agent-command-block {
     flex-direction: column;
+    align-items: flex-start;
   }
 
   h2 {

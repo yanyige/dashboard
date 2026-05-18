@@ -312,7 +312,7 @@ Maintains project context and prepares tasks before execution. In the preferred 
 
 ### Executor Agent
 
-Claims `ready` tasks that match its skills, works from the prepared execution package, submits delivery evidence, and becomes available again after acceptance.
+Claims `ready` tasks that match its skills, works from the prepared execution package, and proactively runs `deliver-task` after completion. That moves the task to `review` with delivery evidence so the overall PM / Context Steward can accept or send it back. Executor Agents must not run `accept-delivery` for their own work.
 
 ## Task States
 

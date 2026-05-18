@@ -123,6 +123,14 @@ try {
   assert.equal(approved.task.status, "ready");
   assert.equal(approved.task.context_status, "ready");
   assert.equal(approved.task.context_snapshot_id, "context-0003");
+  assert.match(approved.task.execution_package.handoff_prompt, /deliver-task/);
+
+  const approvedDashboard = await getJson(`${baseUrl}/api/projects/web-demo`);
+  const approvedTaskIndex = approvedDashboard.dashboard.task_index.find(
+    (task) => task.id === approvedDraft.id
+  );
+  assert.match(approvedTaskIndex.context.handoff_prompt, /submit it for review/);
+  assert.match(approvedTaskIndex.agent_commands.submit_for_review, /deliver-task/);
 
   const rejected = await postJson(
     `${baseUrl}/api/projects/web-demo/tasks/${rejectedDraft.id}/reject`,

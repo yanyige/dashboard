@@ -1242,9 +1242,15 @@ export class ControlCenter {
           prepared_at: task.execution_package?.prepared_at ?? null,
           summary: task.execution_package?.context_summary ?? null,
           task_brief: task.execution_package?.task_brief ?? null,
+          handoff_prompt: task.execution_package?.handoff_prompt ?? null,
           relevant_files: task.execution_package?.relevant_files ?? [],
           assumptions: task.execution_package?.assumptions ?? []
         },
+        agent_commands: buildAgentTaskCommands({
+          projectId,
+          taskId: task.id,
+          agentId: task.assigned_agent_id
+        }),
         delivery: delivery
           ? {
               id: delivery.id,
@@ -1694,6 +1700,12 @@ function buildHandoffPrompt({
   acceptanceCriteria,
   deliverables
 }) {
+  const commands = buildAgentTaskCommands({
+    projectId: project.id,
+    taskId: task.id,
+    agentId: "<agent-id>"
+  });
+
   return [
     `Project: ${project.title}`,
     `Goal: ${project.goal}`,
@@ -1702,8 +1714,53 @@ function buildHandoffPrompt({
     `Objective: ${task.objective}`,
     `Brief: ${taskBrief}`,
     `Acceptance criteria: ${acceptanceCriteria.join("; ") || "Not specified"}`,
-    `Deliverables: ${deliverables.join("; ") || "Not specified"}`
+    `Deliverables: ${deliverables.join("; ") || "Not specified"}`,
+    "",
+    "Agent operating contract:",
+    "1. Claim and start the task before editing.",
+    "2. When the work is complete, proactively submit it for review with `deliver-task`.",
+    "3. `deliver-task` changes the task status to `review`; do not run `accept-delivery` yourself.",
+    "4. The overall PM / Context Steward reviews the delivery evidence and accepts or sends it back.",
+    "",
+    "Claim:",
+    commands.claim,
+    "",
+    "Start:",
+    commands.start,
+    "",
+    "Submit for review after completion:",
+    commands.submit_for_review,
+    "",
+    "If `dashboard-ccc` is not installed in your environment, run the same command from the control-center repository with `npm run ccc --` before the command name."
   ].join("\n");
+}
+
+function buildAgentTaskCommands({ projectId, taskId, agentId }) {
+  const agent = agentId ?? "<agent-id>";
+  const commandPrefix = "dashboard-ccc";
+  const projectArg = shellArg(projectId);
+  const taskArg = shellArg(taskId);
+  const agentArg = shellArg(agent);
+
+  return {
+    claim: `${commandPrefix} claim-task --project ${projectArg} --task ${taskArg} --agent ${agentArg}`,
+    start: `${commandPrefix} start-task --project ${projectArg} --task ${taskArg} --agent ${agentArg}`,
+    submit_for_review: [
+      `${commandPrefix} deliver-task \\`,
+      `  --project ${projectArg} \\`,
+      `  --task ${taskArg} \\`,
+      `  --agent ${agentArg} \\`,
+      `  --summary "<完成内容、影响范围和关键决策>" \\`,
+      `  --changed-file "<变更文件路径，可重复多次>" \\`,
+      `  --verification "<验证命令、结果或无法验证的原因，可重复多次>" \\`,
+      `  --ai-detection-status passed \\`,
+      `  --ai-detection-summary "<执行 Agent 对交付质量、风险和遗漏项的自检结论>"`
+    ].join("\n")
+  };
+}
+
+function shellArg(value) {
+  return `'${String(value).replace(/'/g, "'\\''")}'`;
 }
 
 function requireFields(value, fields) {

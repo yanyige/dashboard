@@ -113,6 +113,8 @@ const preparedTask = jsonRun([
   "--json"
 ]);
 assert.equal(preparedTask.task.status, "ready");
+assert.match(preparedTask.task.execution_package.handoff_prompt, /deliver-task/);
+assert.match(preparedTask.task.execution_package.handoff_prompt, /status to `review`/);
 
 const claimableTasks = jsonRun([
   "list-claimable-tasks",

@@ -178,22 +178,26 @@ async function copyOwnerThreadPrompt() {
     return;
   }
 
+  await copyText(prompt, elements.copyOwnerPromptButton, "复制接入提示词");
+}
+
+async function copyText(value, button, defaultLabel) {
   try {
     if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(prompt);
+      await navigator.clipboard.writeText(value);
     } else {
-      fallbackCopyText(prompt);
+      fallbackCopyText(value);
     }
-    elements.copyOwnerPromptButton.textContent = "已复制";
+    button.textContent = "已复制";
     setTimeout(() => {
-      elements.copyOwnerPromptButton.textContent = "复制接入提示词";
+      button.textContent = defaultLabel;
     }, 1600);
   } catch (error) {
     try {
-      fallbackCopyText(prompt);
-      elements.copyOwnerPromptButton.textContent = "已复制";
+      fallbackCopyText(value);
+      button.textContent = "已复制";
       setTimeout(() => {
-        elements.copyOwnerPromptButton.textContent = "复制接入提示词";
+        button.textContent = defaultLabel;
       }, 1600);
     } catch {
       elements.generatedAt.textContent = `复制失败：${error.message}`;
@@ -428,10 +432,20 @@ function createTaskCard(task, { active }) {
     ${renderTaskBrief(task)}
     ${renderTaskMeta(task)}
     ${renderTaskDetailGrid(task, active)}
+    ${renderAgentCommandBlock(task)}
+    ${renderDeliveryBlock(task)}
     ${renderTaskActions(task)}
   `;
   card.querySelectorAll("[data-task-action]").forEach((button) => {
     button.addEventListener("click", () => reviewTask(task, button.dataset.taskAction));
+  });
+  card.querySelectorAll("[data-agent-command]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const command = getAgentCommand(task, button.dataset.agentCommand);
+      if (command) {
+        copyText(command, button, button.dataset.defaultLabel);
+      }
+    });
   });
   return card;
 }
@@ -482,6 +496,7 @@ function renderTaskDetailGrid(task, active) {
     blocks.push(renderTaskInfoBlock("运行上下文", [
       task.context?.task_brief,
       task.context?.summary,
+      task.context?.handoff_prompt ? "任务交接提示词已生成，Agent 可按操作命令提交验收。" : null,
       task.owner_report_id ? `负责人报告：${task.owner_report_id}` : null,
       task.project_owner_thread_id ? `项目负责人：${task.project_owner_thread_id}` : null
     ]));
@@ -504,6 +519,51 @@ function renderTaskInfoBlock(title, values) {
         ${normalizedValues.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}
       </ul>
     </section>
+  `;
+}
+
+function renderAgentCommandBlock(task) {
+  if (!task.agent_commands) {
+    return "";
+  }
+
+  const nextAction = getAgentNextAction(task);
+  if (!nextAction) {
+    return "";
+  }
+
+  return `
+    <div class="agent-command-block">
+      <div>
+        <span>Agent 下一步</span>
+        <strong>${escapeHtml(nextAction.title)}</strong>
+        <p>${escapeHtml(nextAction.description)}</p>
+      </div>
+      <button class="small-button primary-small" type="button" data-agent-command="${escapeHtml(nextAction.commandKey)}" data-default-label="${escapeHtml(nextAction.buttonLabel)}">${escapeHtml(nextAction.buttonLabel)}</button>
+    </div>
+  `;
+}
+
+function renderDeliveryBlock(task) {
+  if (!task.delivery) {
+    return "";
+  }
+
+  const verification = task.delivery.verification?.length
+    ? task.delivery.verification.join(" / ")
+    : "暂无验证记录。";
+  const aiSummary = task.delivery.ai_detection?.summary
+    ? `AI 自检：${task.delivery.ai_detection.summary}`
+    : "AI 自检：暂无记录。";
+
+  return `
+    <div class="delivery-block">
+      <span>交付记录</span>
+      <strong>${escapeHtml(task.delivery.id)} · ${escapeHtml(formatDeliveryStatus(task.delivery.status))}</strong>
+      <p>${escapeHtml(task.delivery.summary || "暂无交付摘要。")}</p>
+      <p>${escapeHtml(verification)}</p>
+      <p>${escapeHtml(aiSummary)}</p>
+    </div>
   `;
 }
 
@@ -538,6 +598,50 @@ function renderList(element, values) {
 
 function getProjectTasks(dashboard) {
   return dashboard?.task_index ?? dashboard?.task_hall ?? [];
+}
+
+function getAgentNextAction(task) {
+  if (task.status === "ready") {
+    return {
+      commandKey: "claim",
+      title: "领取任务",
+      description: "把任务分配给执行 Agent，之后再启动执行。",
+      buttonLabel: "复制领取命令"
+    };
+  }
+
+  if (task.status === "claimed") {
+    return {
+      commandKey: "start",
+      title: "启动任务",
+      description: "执行 Agent 开始工作；完成后必须提交验收，不能自审。",
+      buttonLabel: "复制启动命令"
+    };
+  }
+
+  if (task.status === "in_progress") {
+    return {
+      commandKey: "submit_for_review",
+      title: "提交验收",
+      description: "执行 Agent 完成后运行该命令，任务会进入待验收状态，由总项目经理验收。",
+      buttonLabel: "复制提交验收命令"
+    };
+  }
+
+  if (task.status === "review") {
+    return {
+      commandKey: "submit_for_review",
+      title: "等待总项目经理验收",
+      description: "Agent 已提交交付记录；下一步由总项目经理或 Reviewer 审核，不由执行 Agent 自行通过。",
+      buttonLabel: "复制补充交付命令"
+    };
+  }
+
+  return null;
+}
+
+function getAgentCommand(task, commandKey) {
+  return task.agent_commands?.[commandKey] ?? "";
 }
 
 function getSelectedProject() {
@@ -663,6 +767,9 @@ function setLoading(isLoading) {
   document.querySelectorAll("[data-task-action]").forEach((button) => {
     button.disabled = isLoading;
   });
+  document.querySelectorAll("[data-agent-command]").forEach((button) => {
+    button.disabled = isLoading;
+  });
 }
 
 function formatDate(value) {
@@ -687,6 +794,14 @@ function formatLifecycle(value) {
 
 function formatTaskStatus(value) {
   return TASK_STATUS_LABELS[value] ?? value ?? "-";
+}
+
+function formatDeliveryStatus(value) {
+  return {
+    submitted: "已提交验收",
+    accepted: "已验收",
+    rejected: "已退回"
+  }[value] ?? value ?? "-";
 }
 
 function formatContextStatus(value) {
