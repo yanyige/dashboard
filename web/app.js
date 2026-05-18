@@ -50,6 +50,15 @@ const elements = {
   metricDraft: document.getElementById("metricDraft"),
   metricStale: document.getElementById("metricStale"),
   metricBlocked: document.getElementById("metricBlocked"),
+  contextMeta: document.getElementById("contextMeta"),
+  contextSummaryInput: document.getElementById("contextSummaryInput"),
+  contextP0List: document.getElementById("contextP0List"),
+  contextP1List: document.getElementById("contextP1List"),
+  contextP2List: document.getElementById("contextP2List"),
+  contextP0Input: document.getElementById("contextP0Input"),
+  contextP1Input: document.getElementById("contextP1Input"),
+  contextP2Input: document.getElementById("contextP2Input"),
+  saveContextButton: document.getElementById("saveContextButton"),
   latestStatusMeta: document.getElementById("latestStatusMeta"),
   latestStatusSummary: document.getElementById("latestStatusSummary"),
   riskList: document.getElementById("riskList"),
@@ -63,6 +72,7 @@ const elements = {
 
 elements.refreshButton.addEventListener("click", () => loadDashboard());
 elements.runCheckButton.addEventListener("click", () => runProjectCheck());
+elements.saveContextButton.addEventListener("click", () => saveProjectContext());
 
 loadDashboard();
 
@@ -138,6 +148,47 @@ async function reviewTask(task, action) {
   }
 }
 
+async function saveProjectContext() {
+  const selected = getSelectedProject();
+  if (!selected) {
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const response = await fetch(
+      `/api/projects/${encodeURIComponent(selected.project.id)}/context`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          summary: elements.contextSummaryInput.value.trim(),
+          requirements: {
+            p0: parseTextareaList(elements.contextP0Input.value),
+            p1: parseTextareaList(elements.contextP1Input.value),
+            p2: parseTextareaList(elements.contextP2Input.value)
+          }
+        })
+      }
+    );
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? `HTTP ${response.status}`);
+    }
+
+    await fetch("/api/checks/run", {
+      method: "POST"
+    });
+    await loadDashboard();
+  } catch (error) {
+    elements.generatedAt.textContent = `上下文保存失败：${error.message}`;
+  } finally {
+    setLoading(false);
+  }
+}
+
 function render() {
   const data = state.data;
   const selected = getSelectedProject();
@@ -175,6 +226,7 @@ function renderProject(dashboard) {
     elements.projectGoal.textContent = "创建或导入项目后开始跟踪状态。";
     setHealth("unknown");
     renderMetrics({});
+    renderContext(null);
     renderStatus(null);
     renderTasks([]);
     return;
@@ -184,6 +236,7 @@ function renderProject(dashboard) {
   elements.projectGoal.textContent = dashboard.project.goal;
   setHealth(dashboard.project.health);
   renderMetrics(dashboard.task_summary);
+  renderContext(dashboard.current_context);
   renderStatus(dashboard.latest_status);
   renderTasks(dashboard.task_hall);
 }
@@ -211,6 +264,30 @@ function renderStatus(status) {
   elements.latestStatusSummary.textContent = translateStatusText(status.summary);
   renderList(elements.riskList, status.risks?.map(translateStatusText));
   renderList(elements.nextActionList, status.next_actions?.map(translateStatusText));
+}
+
+function renderContext(context) {
+  if (!context) {
+    elements.contextMeta.textContent = "暂无上下文";
+    elements.contextSummaryInput.value = "";
+    renderList(elements.contextP0List, []);
+    renderList(elements.contextP1List, []);
+    renderList(elements.contextP2List, []);
+    elements.contextP0Input.value = "";
+    elements.contextP1Input.value = "";
+    elements.contextP2Input.value = "";
+    return;
+  }
+
+  const requirements = context.requirements ?? {};
+  elements.contextMeta.textContent = `${context.id} | v${context.version} | 已完成 ${context.completed_task_count} 个任务`;
+  elements.contextSummaryInput.value = context.summary ?? "";
+  renderList(elements.contextP0List, requirements.p0);
+  renderList(elements.contextP1List, requirements.p1);
+  renderList(elements.contextP2List, requirements.p2);
+  elements.contextP0Input.value = formatTextareaList(requirements.p0);
+  elements.contextP1Input.value = formatTextareaList(requirements.p1);
+  elements.contextP2Input.value = formatTextareaList(requirements.p2);
 }
 
 function renderLatestCheck(check) {
@@ -396,9 +473,21 @@ function setLoading(isLoading) {
   state.loading = isLoading;
   elements.refreshButton.disabled = isLoading;
   elements.runCheckButton.disabled = isLoading;
+  elements.saveContextButton.disabled = isLoading;
   document.querySelectorAll("[data-task-action]").forEach((button) => {
     button.disabled = isLoading;
   });
+}
+
+function parseTextareaList(value) {
+  return value
+    .split("\n")
+    .map((line) => line.replace(/^[-*]\s+/, "").trim())
+    .filter(Boolean);
+}
+
+function formatTextareaList(values) {
+  return (values ?? []).join("\n");
 }
 
 function formatDate(value) {

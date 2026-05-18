@@ -36,6 +36,23 @@
       "type": "array",
       "items": { "type": "string" }
     },
+    "requirements": {
+      "type": "object",
+      "properties": {
+        "p0": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "p1": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "p2": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
     "decisions": {
       "type": "array"
     },

@@ -80,6 +80,7 @@ export class ControlCenter {
       tech_stack: project.tech_stack ?? [],
       constraints: project.constraints ?? [],
       roadmap: project.roadmap ?? [],
+      requirements: normalizeRequirements(project.requirements),
       decisions: project.decisions ?? [],
       repository: project.github ?? null,
       completed_tasks: [],
@@ -119,6 +120,63 @@ export class ControlCenter {
     });
 
     return { project: projectRecord, context: contextSnapshot };
+  }
+
+  updateProjectContext(input) {
+    requireFields(input, ["project_id", "updated_by"]);
+    this.assertProjectAcceptsWork(input.project_id, "update context");
+
+    const project = this.getProject(input.project_id);
+    const previousContext = this.getContext(
+      input.project_id,
+      project.current_context_snapshot_id
+    );
+    const nextContextId = this.nextId(this.contextsDir(input.project_id), "context");
+    const nextContext = {
+      ...deepClone(previousContext),
+      id: nextContextId,
+      version: previousContext.version + 1,
+      based_on: previousContext.id,
+      summary:
+        input.summary !== undefined ? input.summary : previousContext.summary,
+      requirements:
+        input.requirements !== undefined
+          ? normalizeRequirements(input.requirements)
+          : normalizeRequirements(previousContext.requirements),
+      change_log: [
+        ...previousContext.change_log,
+        {
+          at: now(),
+          by: input.updated_by,
+          note: input.note ?? "Updated project context requirements."
+        }
+      ],
+      updated_at: now()
+    };
+    const updatedProject = {
+      ...project,
+      current_context_snapshot_id: nextContext.id,
+      updated_at: now()
+    };
+
+    this.writeRecord("context", this.contextPath(input.project_id, nextContext.id), nextContext);
+    this.writeRecord("project", this.projectPath(input.project_id), updatedProject);
+    const staleTasks = this.markStalePreparedTasks(
+      input.project_id,
+      nextContext.id,
+      null
+    );
+    this.appendEvent("project.context_updated", {
+      project_id: input.project_id,
+      context_snapshot_id: nextContext.id,
+      stale_task_ids: staleTasks.map((task) => task.id)
+    });
+
+    return {
+      project: updatedProject,
+      context: nextContext,
+      stale_tasks: staleTasks
+    };
   }
 
   publishTask(task) {
@@ -886,6 +944,11 @@ export class ControlCenter {
         id: context.id,
         version: context.version,
         summary: context.summary,
+        requirements: normalizeRequirements(context.requirements),
+        tech_stack: context.tech_stack ?? [],
+        constraints: context.constraints ?? [],
+        roadmap: context.roadmap ?? [],
+        repo_path: context.repo_path ?? null,
         completed_task_count: context.completed_tasks.length
       },
       task_summary: taskSummary,
@@ -1317,6 +1380,14 @@ function uniqueStrings(values) {
         .filter(Boolean)
     )
   ];
+}
+
+function normalizeRequirements(requirements = {}) {
+  return {
+    p0: uniqueStrings(requirements?.p0 ?? []),
+    p1: uniqueStrings(requirements?.p1 ?? []),
+    p2: uniqueStrings(requirements?.p2 ?? [])
+  };
 }
 
 function compareTasksForClaim(left, right) {

@@ -104,6 +104,7 @@ function validateContext(value, errors) {
   arrayOfStrings(value, "tech_stack", errors);
   arrayOfStrings(value, "constraints", errors);
   arrayOfStrings(value, "roadmap", errors);
+  optionalRequirements(value, "requirements", errors);
   arrayValue(value, "decisions", errors);
   arrayValue(value, "completed_tasks", errors);
   arrayValue(value, "change_log", errors);
@@ -239,6 +240,17 @@ function objectValue(value, field, errors) {
     typeof value?.[field] !== "object"
   ) {
     errors.push(`${field} must be an object`);
+  }
+}
+
+function optionalRequirements(value, field, errors) {
+  if (value?.[field] === undefined) {
+    return;
+  }
+
+  objectValue(value, field, errors);
+  for (const priority of ["p0", "p1", "p2"]) {
+    optionalArrayOfStrings(value[field], priority, errors);
   }
 }
 

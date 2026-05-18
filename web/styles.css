@@ -317,6 +317,48 @@ h4 {
   gap: 18px;
 }
 
+.context-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.field-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.context-textarea {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.requirements-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.requirement-column {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.context-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .plain-list {
   padding: 0;
   margin: 0;
@@ -476,6 +518,7 @@ tr:last-child td {
 
   .metrics-grid,
   .status-layout,
+  .requirements-grid,
   .split-list {
     grid-template-columns: 1fr;
   }

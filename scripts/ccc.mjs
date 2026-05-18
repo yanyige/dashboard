@@ -18,6 +18,8 @@ Commands:
   list-projects      List projects
   show-project       Show one project
   archive-project    Archive a project and remove it from active work routing
+  update-project-context
+                    Update the versioned project context and P0/P1/P2 requirements
   update-project-status
                     Write a Context Steward project status snapshot
   show-project-dashboard
@@ -60,6 +62,7 @@ const handlers = {
   "list-projects": handleListProjects,
   "show-project": handleShowProject,
   "archive-project": handleArchiveProject,
+  "update-project-context": handleUpdateProjectContext,
   "update-project-status": handleUpdateProjectStatus,
   "show-project-dashboard": handleShowProjectDashboard,
   "list-project-status": handleListProjectStatus,
@@ -139,6 +142,7 @@ function handleCreateProject(center, flags) {
     tech_stack: csvFlag(flags, "tech-stack"),
     constraints: collectFlags(flags, "constraint", "constraints"),
     roadmap: collectFlags(flags, "roadmap"),
+    requirements: requirementsFromFlags(flags),
     decisions: collectFlags(flags, "decision", "decisions"),
     context_summary: stringFlag(flags, "context-summary"),
     created_by: stringFlag(flags, "created-by") ?? "human-owner"
@@ -160,6 +164,7 @@ function handleImportProject(center, flags) {
     clone: flags["no-clone"] !== true,
     constraints: collectFlags(flags, "constraint", "constraints"),
     roadmap: collectFlags(flags, "roadmap"),
+    requirements: requirementsFromFlags(flags),
     context_summary: stringFlag(flags, "context-summary"),
     created_by: stringFlag(flags, "created-by") ?? "human-owner"
   });
@@ -183,6 +188,16 @@ function handleArchiveProject(center, flags) {
     project_id: projectFlag(flags),
     archived_by: stringFlag(flags, "archived-by") ?? "codex-thread",
     reason: stringFlag(flags, "reason") ?? ""
+  });
+}
+
+function handleUpdateProjectContext(center, flags) {
+  return center.updateProjectContext({
+    project_id: projectFlag(flags),
+    updated_by: stringFlag(flags, "updated-by") ?? "codex-thread",
+    summary: stringFlag(flags, "summary", "context-summary"),
+    requirements: requirementsFromFlags(flags),
+    note: stringFlag(flags, "note") ?? "CLI project context update."
   });
 }
 
@@ -412,6 +427,11 @@ function printResult(command, result, flags) {
     case "archive-project":
       console.log(
         `archived project ${result.project.id}; health=${result.project.health}`
+      );
+      break;
+    case "update-project-context":
+      console.log(
+        `updated context ${result.context.id}; stale tasks=${result.stale_tasks.length}`
       );
       break;
     case "update-project-status":
@@ -648,6 +668,17 @@ function optionalCsvFlag(flags, ...names) {
     .flatMap((value) => value.split(","))
     .map((value) => value.trim())
     .filter(Boolean);
+}
+
+function requirementsFromFlags(flags) {
+  const requirements = {
+    p0: collectFlags(flags, "p0", "p0-requirement"),
+    p1: collectFlags(flags, "p1", "p1-requirement"),
+    p2: collectFlags(flags, "p2", "p2-requirement")
+  };
+  return requirements.p0.length + requirements.p1.length + requirements.p2.length > 0
+    ? requirements
+    : undefined;
 }
 
 function positiveIntegerFlag(flags, ...names) {

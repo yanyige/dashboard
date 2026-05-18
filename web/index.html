@@ -63,6 +63,37 @@
           </div>
         </section>
 
+        <section class="panel context-panel">
+          <div class="panel-header">
+            <h3>项目上下文</h3>
+            <span id="contextMeta" class="muted">暂无上下文</span>
+          </div>
+          <label class="field-label" for="contextSummaryInput">摘要</label>
+          <textarea id="contextSummaryInput" class="context-textarea" rows="3"></textarea>
+          <div class="requirements-grid">
+            <div class="requirement-column">
+              <h4>P0</h4>
+              <ul id="contextP0List" class="plain-list"></ul>
+              <textarea id="contextP0Input" class="context-textarea" rows="4"></textarea>
+            </div>
+            <div class="requirement-column">
+              <h4>P1</h4>
+              <ul id="contextP1List" class="plain-list"></ul>
+              <textarea id="contextP1Input" class="context-textarea" rows="4"></textarea>
+            </div>
+            <div class="requirement-column">
+              <h4>P2</h4>
+              <ul id="contextP2List" class="plain-list"></ul>
+              <textarea id="contextP2Input" class="context-textarea" rows="4"></textarea>
+            </div>
+          </div>
+          <div class="context-actions">
+            <button id="saveContextButton" class="primary-button" type="button">
+              <span>保存上下文</span>
+            </button>
+          </div>
+        </section>
+
         <section class="status-layout">
           <div class="panel">
             <div class="panel-header">

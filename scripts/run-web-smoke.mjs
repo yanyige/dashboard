@@ -60,13 +60,32 @@ try {
   const project = await getJson(`${baseUrl}/api/projects/web-demo`);
   assert.equal(project.dashboard.task_summary.total, 2);
   assert.equal(project.status_updates.length, 1);
+  assert.deepEqual(project.dashboard.current_context.requirements, {
+    p0: [],
+    p1: [],
+    p2: []
+  });
+
+  const contextUpdate = await postJson(`${baseUrl}/api/projects/web-demo/context`, {
+    summary: "Updated web smoke context.",
+    requirements: {
+      p0: ["Review draft work before execution."],
+      p1: ["Show context requirements in the dashboard."],
+      p2: ["Keep historical context snapshots."]
+    }
+  });
+  assert.equal(contextUpdate.context.id, "context-0002");
+  assert.equal(contextUpdate.context.summary, "Updated web smoke context.");
+  assert.deepEqual(contextUpdate.context.requirements.p0, [
+    "Review draft work before execution."
+  ]);
 
   const approved = await postJson(
     `${baseUrl}/api/projects/web-demo/tasks/${approvedDraft.id}/approve`
   );
   assert.equal(approved.task.status, "ready");
   assert.equal(approved.task.context_status, "ready");
-  assert.equal(approved.task.context_snapshot_id, "context-0001");
+  assert.equal(approved.task.context_snapshot_id, "context-0002");
 
   const rejected = await postJson(
     `${baseUrl}/api/projects/web-demo/tasks/${rejectedDraft.id}/reject`,
