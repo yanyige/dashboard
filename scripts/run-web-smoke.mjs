@@ -175,13 +175,41 @@ try {
   assert.equal(approvedProposal.task.status, "draft");
   assert.equal(approvedProposal.dashboard.requirement_proposal_summary.approved_ids.length, 1);
 
+  const threadMessage = await postJson(`${baseUrl}/api/projects/web-demo/thread-inbox`, {
+    sender_id: "web-owner",
+    sender_name: "Dashboard User",
+    content: "请汇报 task-0001 的当前状态。"
+  });
+  assert.equal(threadMessage.message.status, "pending");
+  assert.equal(threadMessage.message.project_id, "web-demo");
+  assert.equal(threadMessage.message.owner_thread_id, "codex-thread");
+  assert.equal(threadMessage.dashboard.thread_inbox_summary.pending_ids.length, 1);
+
+  const inbox = await getJson(`${baseUrl}/api/projects/web-demo/thread-inbox`);
+  assert.equal(inbox.messages.length, 1);
+  assert.equal(inbox.summary.total, 1);
+
+  const updatedThreadMessage = await postJson(
+    `${baseUrl}/api/projects/web-demo/thread-inbox/${threadMessage.message.id}`,
+    {
+      status: "replied",
+      processed_by: "codex-thread",
+      reply: "task-0001 当前等待执行。"
+    }
+  );
+  assert.equal(updatedThreadMessage.message.status, "replied");
+  assert.equal(updatedThreadMessage.message.reply, "task-0001 当前等待执行。");
+  assert.equal(updatedThreadMessage.dashboard.thread_inbox_summary.replied_ids.length, 1);
+
   const html = await getText(`${baseUrl}/`);
   assert.match(html, /Codex 控制中心/);
   assert.match(html, /项目看板/);
   assert.match(html, /taskFilterControls/);
+  assert.match(html, /projectChatSection/);
   const appJs = await getText(`${baseUrl}/app.js`);
   assert.match(appJs, /data-task-filter/);
   assert.match(appJs, /已退回/);
+  assert.match(appJs, /thread-inbox/);
 
   console.log("web smoke passed");
 } finally {

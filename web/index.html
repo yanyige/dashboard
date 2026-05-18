@@ -133,6 +133,21 @@
           </div>
         </section>
 
+        <section id="projectChatSection" class="panel thread-inbox-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Thread Inbox</p>
+              <h3>项目聊天</h3>
+            </div>
+            <span id="threadInboxCountLabel" class="muted">0 条消息</span>
+          </div>
+          <form id="threadInboxForm" class="thread-inbox-form">
+            <textarea id="threadInboxInput" rows="3" placeholder="输入项目消息" aria-label="项目消息"></textarea>
+            <button id="threadInboxSendButton" class="primary-button" type="submit">发送</button>
+          </form>
+          <div id="threadInboxList" class="thread-inbox-list"></div>
+        </section>
+
         <section id="activeWorkSection" class="panel active-work-panel">
           <div class="panel-header">
             <div>

@@ -282,6 +282,7 @@ The web dashboard exposes:
 - latest project status snapshot
 - latest scheduled check
 - requirement proposal review queue from project owner reports
+- project Thread Inbox messages for browser-to-project conversations
 - task hall table
 - draft review actions to approve requirements into ready tasks or reject them
 - recent check history
@@ -298,7 +299,15 @@ GET  /api/checks/:checkId
 POST /api/checks/run
 POST /api/projects/:projectId/requirement-proposals/:proposalId/approve
 POST /api/projects/:projectId/requirement-proposals/:proposalId/reject
+GET  /api/projects/:projectId/thread-inbox
+POST /api/projects/:projectId/thread-inbox
+POST /api/projects/:projectId/thread-inbox/:messageId
 ```
+
+The Thread Inbox API is V2-lite plumbing. It records browser messages as
+project-scoped `pending` items with owner Thread metadata, then lets automation
+or a later bridge move them through `processing`, `replied`, or `failed` while
+preserving reply and error evidence.
 
 On the server deployment, the stable entrypoint is:
 

@@ -236,6 +236,54 @@ async function handleApi({ center, request, response, url }) {
     return;
   }
 
+  const threadInboxMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/thread-inbox$/);
+  if (request.method === "GET" && threadInboxMatch) {
+    const projectId = decodeURIComponent(threadInboxMatch[1]);
+    sendJson(response, 200, {
+      messages: center.listProjectThreadMessages(projectId),
+      summary: center.getProjectDashboard(projectId).thread_inbox_summary
+    });
+    return;
+  }
+
+  if (request.method === "POST" && threadInboxMatch) {
+    const projectId = decodeURIComponent(threadInboxMatch[1]);
+    const body = await readJsonBody(request);
+    const message = center.createProjectThreadMessage({
+      project_id: projectId,
+      sender_id: body.sender_id,
+      sender_name: body.sender_name,
+      content: body.content ?? body.message ?? body.body
+    });
+    sendJson(response, 201, {
+      message,
+      dashboard: center.getProjectDashboard(projectId)
+    });
+    return;
+  }
+
+  const threadMessageMatch = url.pathname.match(
+    /^\/api\/projects\/([^/]+)\/thread-inbox\/([^/]+)$/
+  );
+  if ((request.method === "POST" || request.method === "PATCH") && threadMessageMatch) {
+    const projectId = decodeURIComponent(threadMessageMatch[1]);
+    const messageId = decodeURIComponent(threadMessageMatch[2]);
+    const body = await readJsonBody(request);
+    const message = center.updateProjectThreadMessage({
+      project_id: projectId,
+      message_id: messageId,
+      status: body.status,
+      processed_by: body.processed_by ?? body.agent_id,
+      reply: body.reply,
+      error: body.error
+    });
+    sendJson(response, 200, {
+      message,
+      dashboard: center.getProjectDashboard(projectId)
+    });
+    return;
+  }
+
   const projectMatch = url.pathname.match(/^\/api\/projects\/([^/]+)$/);
   if (request.method === "GET" && projectMatch) {
     const projectId = decodeURIComponent(projectMatch[1]);

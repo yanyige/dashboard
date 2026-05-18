@@ -31,6 +31,13 @@ const CONTEXT_STATUS_LABELS = {
   stale: "需更新"
 };
 
+const THREAD_MESSAGE_STATUS_LABELS = {
+  pending: "待处理",
+  processing: "处理中",
+  replied: "已回复",
+  failed: "失败"
+};
+
 const PRIORITY_LABELS = {
   urgent: "紧急",
   high: "高",
@@ -96,6 +103,11 @@ const elements = {
   contextP0List: document.getElementById("contextP0List"),
   contextP1List: document.getElementById("contextP1List"),
   contextP2List: document.getElementById("contextP2List"),
+  threadInboxCountLabel: document.getElementById("threadInboxCountLabel"),
+  threadInboxForm: document.getElementById("threadInboxForm"),
+  threadInboxInput: document.getElementById("threadInboxInput"),
+  threadInboxSendButton: document.getElementById("threadInboxSendButton"),
+  threadInboxList: document.getElementById("threadInboxList"),
   activeTaskCountLabel: document.getElementById("activeTaskCountLabel"),
   activeTaskList: document.getElementById("activeTaskList"),
   requirementProposalCountLabel: document.getElementById("requirementProposalCountLabel"),
@@ -108,6 +120,7 @@ const elements = {
 elements.refreshButton.addEventListener("click", () => loadDashboard());
 elements.runCheckButton.addEventListener("click", () => runProjectCheck());
 elements.copyOwnerPromptButton.addEventListener("click", () => copyOwnerThreadPrompt());
+elements.threadInboxForm.addEventListener("submit", (event) => sendThreadInboxMessage(event));
 window.addEventListener("hashchange", () => expandTaskFromHash());
 
 loadDashboard();
@@ -213,6 +226,44 @@ async function reviewRequirementProposal(proposal, action) {
     await loadDashboard();
   } catch (error) {
     elements.generatedAt.textContent = `需求审核失败：${error.message}`;
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function sendThreadInboxMessage(event) {
+  event.preventDefault();
+  const selected = getSelectedProject();
+  const content = elements.threadInboxInput.value.trim();
+  if (!selected || !content) {
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const response = await fetch(
+      `/api/projects/${encodeURIComponent(selected.project.id)}/thread-inbox`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          sender_id: "web-owner",
+          sender_name: "Dashboard 用户",
+          content
+        })
+      }
+    );
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? `HTTP ${response.status}`);
+    }
+
+    elements.threadInboxInput.value = "";
+    await loadDashboard();
+  } catch (error) {
+    elements.generatedAt.textContent = `消息发送失败：${error.message}`;
   } finally {
     setLoading(false);
   }
@@ -329,6 +380,7 @@ function renderProject(dashboard) {
     renderMetrics([]);
     renderOwnerOverview(null);
     renderContextOverview(null);
+    renderThreadInbox(null);
     renderActiveTasks([]);
     renderRequirementProposals([]);
     renderTaskQueue([]);
@@ -342,6 +394,7 @@ function renderProject(dashboard) {
   renderMetrics(tasks);
   renderOwnerOverview(dashboard);
   renderContextOverview(dashboard);
+  renderThreadInbox(dashboard);
   renderActiveTasks(tasks);
   renderRequirementProposals(dashboard.requirement_proposals ?? []);
   renderTaskQueue(tasks);
@@ -427,6 +480,67 @@ function renderContextOverview(dashboard) {
   renderList(elements.contextP0List, requirements.p0 ?? []);
   renderList(elements.contextP1List, requirements.p1 ?? []);
   renderList(elements.contextP2List, requirements.p2 ?? []);
+}
+
+function renderThreadInbox(dashboard) {
+  const messages = dashboard?.thread_inbox ?? [];
+  const summary = dashboard?.thread_inbox_summary ?? {};
+  const pending = summary.by_status?.pending ?? 0;
+  const processing = summary.by_status?.processing ?? 0;
+  const replied = summary.by_status?.replied ?? 0;
+  elements.threadInboxCountLabel.textContent =
+    `${messages.length} 条消息 · ${pending + processing} 待处理 · ${replied} 已回复`;
+  elements.threadInboxInput.disabled = state.loading || !dashboard;
+  elements.threadInboxSendButton.disabled = state.loading || !dashboard;
+
+  if (!dashboard) {
+    elements.threadInboxInput.value = "";
+    elements.threadInboxList.innerHTML = `<div class="empty-state">选择项目后可以发送消息。</div>`;
+    return;
+  }
+
+  if (messages.length === 0) {
+    elements.threadInboxList.innerHTML = `<div class="empty-state">当前项目还没有聊天消息。</div>`;
+    return;
+  }
+
+  const sortedMessages = [...messages].sort(
+    (a, b) => new Date(b.updated_at ?? b.created_at ?? 0) - new Date(a.updated_at ?? a.created_at ?? 0)
+  );
+  elements.threadInboxList.replaceChildren(
+    ...sortedMessages.map((message) => createThreadInboxMessage(message))
+  );
+}
+
+function createThreadInboxMessage(message) {
+  const card = document.createElement("article");
+  card.className = `thread-message thread-message-${message.status}`;
+  card.id = `thread-message-${message.id}`;
+  card.tabIndex = -1;
+  const reply = message.reply
+    ? `<div class="thread-message-reply"><span>回复</span><p>${linkifyTaskReferences(message.reply)}</p></div>`
+    : "";
+  const error = message.error
+    ? `<div class="thread-message-error"><span>错误</span><p>${escapeHtml(message.error)}</p></div>`
+    : "";
+  card.innerHTML = `
+    <div class="thread-message-header">
+      <div>
+        <a class="task-id task-self-link" href="#thread-message-${escapeHtml(message.id)}">${escapeHtml(message.id)}</a>
+        <strong>${escapeHtml(message.sender_name || message.sender_id)}</strong>
+      </div>
+      <span class="queue-badge queue-badge-${getThreadMessageBucket(message.status)}">${escapeHtml(formatThreadMessageStatus(message.status))}</span>
+    </div>
+    <p class="thread-message-content">${linkifyTaskReferences(message.content)}</p>
+    ${reply}
+    ${error}
+    <div class="thread-message-meta">
+      <span>负责人 ${escapeHtml(message.owner_thread_name || message.owner_thread_id)}</span>
+      <span>${escapeHtml(formatDate(message.updated_at || message.created_at))}</span>
+      ${message.processed_by ? `<span>处理人 ${escapeHtml(message.processed_by)}</span>` : ""}
+    </div>
+  `;
+  return card;
 }
 
 function renderActiveTasks(tasks) {
@@ -1055,6 +1169,9 @@ function setLoading(isLoading) {
   ].forEach((element) => {
     element.disabled = isLoading;
   });
+  const hasSelectedProject = Boolean(getSelectedProject());
+  elements.threadInboxInput.disabled = isLoading || !hasSelectedProject;
+  elements.threadInboxSendButton.disabled = isLoading || !hasSelectedProject;
   document.querySelectorAll("[data-task-action]").forEach((button) => {
     button.disabled = isLoading;
   });
@@ -1107,6 +1224,19 @@ function formatRequirementProposalStatus(value) {
     approved: "已进入任务列表",
     rejected: "已退回"
   }[value] ?? value ?? "-";
+}
+
+function formatThreadMessageStatus(value) {
+  return THREAD_MESSAGE_STATUS_LABELS[value] ?? value ?? "-";
+}
+
+function getThreadMessageBucket(status) {
+  return {
+    pending: "unissued",
+    processing: "active",
+    replied: "done",
+    failed: "rejected"
+  }[status] ?? "unissued";
 }
 
 function formatContextStatus(value) {

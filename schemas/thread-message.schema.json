@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Thread Inbox Message",
+  "type": "object",
+  "required": [
+    "id",
+    "project_id",
+    "owner_thread_id",
+    "sender_id",
+    "content",
+    "status",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "id": { "type": "string" },
+    "project_id": { "type": "string" },
+    "owner_thread_id": { "type": "string" },
+    "owner_thread_name": { "type": "string" },
+    "sender_id": { "type": "string" },
+    "sender_name": { "type": "string" },
+    "content": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "processing", "replied", "failed"]
+    },
+    "processed_by": { "type": ["string", "null"] },
+    "reply": { "type": ["string", "null"] },
+    "error": { "type": ["string", "null"] },
+    "created_at": { "type": "string" },
+    "updated_at": { "type": "string" },
+    "processing_at": { "type": ["string", "null"] },
+    "replied_at": { "type": ["string", "null"] },
+    "failed_at": { "type": ["string", "null"] }
+  }
+}

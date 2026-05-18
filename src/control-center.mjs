@@ -71,6 +71,7 @@ export class ControlCenter {
     mkdirSync(this.contextsDir(project.id), { recursive: true });
     mkdirSync(this.tasksDir(project.id), { recursive: true });
     mkdirSync(this.deliveriesDir(project.id), { recursive: true });
+    mkdirSync(this.threadInboxDir(project.id), { recursive: true });
     mkdirSync(this.ownerReportsDir(project.id), { recursive: true });
     mkdirSync(this.statusUpdatesDir(project.id), { recursive: true });
 
@@ -383,6 +384,96 @@ export class ControlCenter {
     }
 
     return proposals;
+  }
+
+  createProjectThreadMessage(input) {
+    requireFields(input, ["project_id", "content"]);
+    this.assertProjectAcceptsWork(input.project_id, "create project thread messages");
+
+    const project = this.getProject(input.project_id);
+    const ownerThread = project.owner_thread;
+    if (!ownerThread?.thread_id) {
+      throw new Error(`Project has no owner thread: ${input.project_id}`);
+    }
+
+    const messageId = this.nextId(this.threadInboxDir(input.project_id), "thread-message");
+    const createdAt = now();
+    const message = {
+      id: messageId,
+      project_id: input.project_id,
+      owner_thread_id: ownerThread.thread_id,
+      owner_thread_name: ownerThread.name ?? ownerThread.thread_id,
+      sender_id: input.sender_id ?? "web-owner",
+      sender_name: input.sender_name ?? input.sender_id ?? "web-owner",
+      content: String(input.content).trim(),
+      status: "pending",
+      processed_by: null,
+      reply: null,
+      error: null,
+      created_at: createdAt,
+      updated_at: createdAt,
+      processing_at: null,
+      replied_at: null,
+      failed_at: null
+    };
+
+    this.writeRecord(
+      "thread-message",
+      this.threadMessagePath(input.project_id, message.id),
+      message
+    );
+    this.appendEvent("thread_message.created", {
+      project_id: input.project_id,
+      message_id: message.id,
+      owner_thread_id: message.owner_thread_id,
+      sender_id: message.sender_id
+    });
+
+    return message;
+  }
+
+  updateProjectThreadMessage(input) {
+    requireFields(input, ["project_id", "message_id"]);
+    this.assertProjectAcceptsWork(input.project_id, "update project thread messages");
+
+    const message = this.getProjectThreadMessage(input.project_id, input.message_id);
+    const status = input.status ?? message.status;
+    const updatedAt = now();
+    const updatedMessage = {
+      ...message,
+      status,
+      processed_by:
+        input.processed_by !== undefined ? input.processed_by : message.processed_by,
+      reply: input.reply !== undefined ? input.reply : message.reply,
+      error: input.error !== undefined ? input.error : message.error,
+      updated_at: updatedAt,
+      processing_at:
+        status === "processing" && !message.processing_at
+          ? updatedAt
+          : message.processing_at,
+      replied_at:
+        status === "replied" && !message.replied_at
+          ? updatedAt
+          : message.replied_at,
+      failed_at:
+        status === "failed" && !message.failed_at
+          ? updatedAt
+          : message.failed_at
+    };
+
+    this.writeRecord(
+      "thread-message",
+      this.threadMessagePath(input.project_id, message.id),
+      updatedMessage
+    );
+    this.appendEvent("thread_message.updated", {
+      project_id: input.project_id,
+      message_id: message.id,
+      status: updatedMessage.status,
+      processed_by: updatedMessage.processed_by
+    });
+
+    return updatedMessage;
   }
 
   createRequirementProposal(input) {
@@ -1401,6 +1492,7 @@ export class ControlCenter {
     });
     const tasks = this.listTasks(projectId);
     const requirementProposals = this.listRequirementProposals(projectId);
+    const threadInbox = this.listProjectThreadMessages(projectId);
     const deliveriesById = new Map(
       this.listDeliveries(projectId).map((delivery) => [delivery.id, delivery])
     );
@@ -1522,6 +1614,8 @@ export class ControlCenter {
         source_documents: context.source_documents ?? [],
         completed_task_count: context.completed_tasks.length
       },
+      thread_inbox: threadInbox,
+      thread_inbox_summary: summarizeThreadMessages(threadInbox),
       requirement_proposals: requirementProposals,
       requirement_proposal_summary: summarizeRequirementProposals(requirementProposals),
       task_summary: taskSummary,
@@ -1639,6 +1733,22 @@ export class ControlCenter {
       .filter((fileName) => fileName.endsWith(".json"))
       .sort()
       .map((fileName) => this.readJson(join(deliveriesDir, fileName)));
+  }
+
+  listProjectThreadMessages(projectId) {
+    const threadInboxDir = this.threadInboxDir(projectId);
+    if (!existsSync(threadInboxDir)) {
+      return [];
+    }
+
+    return readdirSync(threadInboxDir)
+      .filter((fileName) => fileName.endsWith(".json"))
+      .sort()
+      .map((fileName) => this.readJson(join(threadInboxDir, fileName)));
+  }
+
+  getProjectThreadMessage(projectId, messageId) {
+    return this.readJson(this.threadMessagePath(projectId, messageId));
   }
 
   updateAgent(agentId, patch) {
@@ -1919,6 +2029,14 @@ export class ControlCenter {
 
   deliveryPath(projectId, deliveryId) {
     return join(this.deliveriesDir(projectId), `${deliveryId}.json`);
+  }
+
+  threadInboxDir(projectId) {
+    return join(this.projectDir(projectId), "thread-inbox");
+  }
+
+  threadMessagePath(projectId, messageId) {
+    return join(this.threadInboxDir(projectId), `${messageId}.json`);
   }
 
   requirementProposalsDir(projectId) {
@@ -2821,6 +2939,30 @@ function summarizeRequirementProposals(proposals) {
     rejected_ids: proposals
       .filter((proposal) => proposal.status === "rejected")
       .map((proposal) => proposal.id)
+  };
+}
+
+function summarizeThreadMessages(messages) {
+  const byStatus = {};
+  for (const message of messages) {
+    byStatus[message.status] = (byStatus[message.status] ?? 0) + 1;
+  }
+
+  return {
+    total: messages.length,
+    by_status: byStatus,
+    pending_ids: messages
+      .filter((message) => message.status === "pending")
+      .map((message) => message.id),
+    processing_ids: messages
+      .filter((message) => message.status === "processing")
+      .map((message) => message.id),
+    replied_ids: messages
+      .filter((message) => message.status === "replied")
+      .map((message) => message.id),
+    failed_ids: messages
+      .filter((message) => message.status === "failed")
+      .map((message) => message.id)
   };
 }
 

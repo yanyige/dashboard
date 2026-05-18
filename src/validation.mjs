@@ -16,6 +16,7 @@ const CONTEXT_STATUSES = ["missing", "ready", "stale"];
 const PRIORITIES = ["low", "medium", "high", "urgent"];
 const DELIVERY_STATUSES = ["submitted", "accepted", "rejected"];
 const REQUIREMENT_PROPOSAL_STATUSES = ["pending", "approved", "rejected"];
+const THREAD_MESSAGE_STATUSES = ["pending", "processing", "replied", "failed"];
 
 export function validateRecord(type, value) {
   const errors = [];
@@ -51,6 +52,9 @@ export function validateRecord(type, value) {
     case "requirement-proposal":
       validateRequirementProposal(value, errors);
       break;
+    case "thread-message":
+      validateThreadMessage(value, errors);
+      break;
     default:
       throw new Error(`Unknown validation record type: ${type}`);
   }
@@ -58,6 +62,25 @@ export function validateRecord(type, value) {
   if (errors.length > 0) {
     throw new Error(`Invalid ${type}: ${errors.join("; ")}`);
   }
+}
+
+function validateThreadMessage(value, errors) {
+  requiredString(value, "id", errors);
+  requiredString(value, "project_id", errors);
+  requiredString(value, "owner_thread_id", errors);
+  optionalString(value, "owner_thread_name", errors);
+  requiredString(value, "sender_id", errors);
+  optionalString(value, "sender_name", errors);
+  requiredString(value, "content", errors);
+  enumValue(value, "status", THREAD_MESSAGE_STATUSES, errors);
+  optionalStringOrNull(value, "processed_by", errors);
+  optionalStringOrNull(value, "reply", errors);
+  optionalStringOrNull(value, "error", errors);
+  requiredString(value, "created_at", errors);
+  requiredString(value, "updated_at", errors);
+  optionalStringOrNull(value, "processing_at", errors);
+  optionalStringOrNull(value, "replied_at", errors);
+  optionalStringOrNull(value, "failed_at", errors);
 }
 
 function validateRequirementProposal(value, errors) {

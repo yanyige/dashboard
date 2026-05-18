@@ -501,9 +501,100 @@ h4 {
 
 .active-task-list,
 .requirement-proposal-list,
-.task-queue-list {
+.task-queue-list,
+.thread-inbox-list {
   display: grid;
   gap: 12px;
+}
+
+.thread-inbox-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  margin-bottom: 14px;
+  align-items: stretch;
+}
+
+.thread-inbox-form textarea {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.thread-inbox-form textarea:focus-visible {
+  outline: 3px solid rgba(15, 118, 110, 0.24);
+  border-color: var(--accent);
+}
+
+.thread-message {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--surface);
+  display: grid;
+  gap: 10px;
+}
+
+.thread-message:target {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.16);
+}
+
+.thread-message-header,
+.thread-message-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.thread-message-header > div {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.thread-message-header strong,
+.thread-message-content,
+.thread-message-reply p,
+.thread-message-error p {
+  overflow-wrap: anywhere;
+}
+
+.thread-message-content,
+.thread-message-reply p,
+.thread-message-error p {
+  line-height: 1.55;
+}
+
+.thread-message-reply,
+.thread-message-error {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  display: grid;
+  gap: 5px;
+}
+
+.thread-message-reply span,
+.thread-message-error span,
+.thread-message-meta {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.thread-message-meta {
+  flex-wrap: wrap;
+  justify-content: flex-start;
 }
 
 .task-filter-controls {
@@ -995,7 +1086,8 @@ h4 {
   .section-heading,
   .owner-thread-line,
   .task-row-header,
-  .agent-command-block {
+  .agent-command-block,
+  .thread-message-header {
     flex-direction: column;
     align-items: flex-start;
   }
@@ -1007,7 +1099,8 @@ h4 {
 
   .metric-strip,
   .requirements-grid,
-  .task-meta-grid {
+  .task-meta-grid,
+  .thread-inbox-form {
     grid-template-columns: 1fr;
   }
 
