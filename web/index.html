@@ -147,6 +147,28 @@
           </div>
         </section>
 
+        <section class="panel task-archive-panel">
+          <div class="panel-header">
+            <h3>任务检索</h3>
+            <span id="taskArchiveCount" class="muted">0 个任务</span>
+          </div>
+          <div class="task-filter-bar">
+            <input id="taskSearchInput" class="filter-input" type="search" placeholder="搜索任务、Agent、交付、审核信息">
+            <select id="taskStatusFilter" class="filter-select" aria-label="任务状态筛选">
+              <option value="all">全部状态</option>
+              <option value="draft">待审核</option>
+              <option value="ready">待领取</option>
+              <option value="claimed">已领取</option>
+              <option value="in_progress">进行中</option>
+              <option value="review">待验收</option>
+              <option value="done">已完成</option>
+              <option value="rejected">已退回</option>
+              <option value="blocked">阻塞</option>
+            </select>
+          </div>
+          <div id="taskArchiveList" class="task-archive-list"></div>
+        </section>
+
         <section class="panel">
           <div class="panel-header">
             <h3>最近检查记录</h3>

@@ -153,6 +153,8 @@ function validateDelivery(value, errors) {
   arrayOfStrings(value, "files_changed", errors);
   arrayOfStrings(value, "verification", errors);
   arrayValue(value, "followups", errors);
+  optionalAiDetection(value, "ai_detection", errors);
+  optionalDeliveryReview(value, "review", errors);
   enumValue(value, "status", DELIVERY_STATUSES, errors);
 }
 
@@ -252,6 +254,32 @@ function optionalRequirements(value, field, errors) {
   for (const priority of ["p0", "p1", "p2"]) {
     optionalArrayOfStrings(value[field], priority, errors);
   }
+}
+
+function optionalAiDetection(value, field, errors) {
+  if (value?.[field] === undefined) {
+    return;
+  }
+
+  objectValue(value, field, errors);
+  optionalString(value[field], "status", errors);
+  optionalString(value[field], "summary", errors);
+  optionalArrayOfStrings(value[field], "findings", errors);
+}
+
+function optionalDeliveryReview(value, field, errors) {
+  if (value?.[field] === undefined) {
+    return;
+  }
+
+  objectValue(value, field, errors);
+  optionalString(value[field], "decision", errors);
+  optionalString(value[field], "reviewed_by", errors);
+  optionalString(value[field], "reviewed_at", errors);
+  optionalString(value[field], "method", errors);
+  optionalString(value[field], "summary", errors);
+  optionalString(value[field], "context_update", errors);
+  optionalAiDetection(value[field], "ai_detection", errors);
 }
 
 function numberValue(value, field, errors) {

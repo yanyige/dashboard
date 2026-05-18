@@ -129,11 +129,18 @@ const deliveredTask = jsonRun([
   "The command-driven lifecycle completed through delivery submission.",
   "--verification",
   "CLI smoke assertions passed.",
+  "--ai-detection-status",
+  "passed",
+  "--ai-detection-summary",
+  "CLI smoke delivery includes explicit verification.",
+  "--ai-finding",
+  "No missing verification was detected.",
   "--followup",
   "Add command examples::Document each lifecycle command in README.::medium::markdown",
   "--json"
 ]);
 assert.equal(deliveredTask.task.status, "review");
+assert.equal(deliveredTask.delivery.ai_detection.status, "passed");
 
 const acceptedDelivery = jsonRun([
   "accept-delivery",
@@ -145,10 +152,13 @@ const acceptedDelivery = jsonRun([
   "steward",
   "--context-update",
   "CLI lifecycle commands are verified by a smoke test.",
+  "--review-summary",
+  "Accepted after checking CLI smoke delivery evidence.",
   "--json"
 ]);
 assert.equal(acceptedDelivery.task.status, "done");
 assert.equal(acceptedDelivery.delivery.status, "accepted");
+assert.equal(acceptedDelivery.delivery.review.reviewed_by, "steward");
 assert.equal(acceptedDelivery.project.current_context_snapshot_id, "context-0002");
 assert.equal(acceptedDelivery.followup_tasks.length, 1);
 

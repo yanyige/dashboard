@@ -1,7 +1,9 @@
 const state = {
   data: null,
   selectedProjectId: null,
-  loading: false
+  loading: false,
+  taskSearch: "",
+  taskStatusFilter: "all"
 };
 
 const HEALTH_LABELS = {
@@ -67,12 +69,24 @@ const elements = {
   checkResults: document.getElementById("checkResults"),
   taskCountLabel: document.getElementById("taskCountLabel"),
   taskRows: document.getElementById("taskRows"),
+  taskArchiveCount: document.getElementById("taskArchiveCount"),
+  taskSearchInput: document.getElementById("taskSearchInput"),
+  taskStatusFilter: document.getElementById("taskStatusFilter"),
+  taskArchiveList: document.getElementById("taskArchiveList"),
   checkHistory: document.getElementById("checkHistory")
 };
 
 elements.refreshButton.addEventListener("click", () => loadDashboard());
 elements.runCheckButton.addEventListener("click", () => runProjectCheck());
 elements.saveContextButton.addEventListener("click", () => saveProjectContext());
+elements.taskSearchInput.addEventListener("input", () => {
+  state.taskSearch = elements.taskSearchInput.value;
+  renderTaskArchive(getSelectedTaskIndex());
+});
+elements.taskStatusFilter.addEventListener("change", () => {
+  state.taskStatusFilter = elements.taskStatusFilter.value;
+  renderTaskArchive(getSelectedTaskIndex());
+});
 
 loadDashboard();
 
@@ -229,6 +243,7 @@ function renderProject(dashboard) {
     renderContext(null);
     renderStatus(null);
     renderTasks([]);
+    renderTaskArchive([]);
     return;
   }
 
@@ -239,6 +254,7 @@ function renderProject(dashboard) {
   renderContext(dashboard.current_context);
   renderStatus(dashboard.latest_status);
   renderTasks(dashboard.task_hall);
+  renderTaskArchive(dashboard.task_index ?? dashboard.task_hall);
 }
 
 function renderMetrics(summary) {
@@ -320,9 +336,9 @@ function renderLatestCheck(check) {
 }
 
 function renderTasks(tasks) {
-  elements.taskCountLabel.textContent = `${tasks.length} 个任务`;
+  elements.taskCountLabel.textContent = `${tasks.length} 个待下放/待领取任务`;
   if (tasks.length === 0) {
-    elements.taskRows.innerHTML = `<tr><td colspan="9" class="empty-state">这个项目还没有任务。</td></tr>`;
+    elements.taskRows.innerHTML = `<tr><td colspan="9" class="empty-state">当前没有需要在任务大厅处理的任务。</td></tr>`;
     return;
   }
 
@@ -348,6 +364,188 @@ function renderTasks(tasks) {
       return row;
     })
   );
+}
+
+function renderTaskArchive(tasks) {
+  const taskList = tasks ?? [];
+  const filteredTasks = filterTaskArchive(taskList);
+  elements.taskArchiveCount.textContent = `${filteredTasks.length}/${taskList.length} 个任务`;
+
+  if (filteredTasks.length === 0) {
+    elements.taskArchiveList.innerHTML = `<div class="empty-state">没有匹配的任务记录。</div>`;
+    return;
+  }
+
+  elements.taskArchiveList.replaceChildren(
+    ...filteredTasks.map((task) => {
+      const card = document.createElement("article");
+      card.className = "task-card";
+      card.innerHTML = renderTaskArchiveCard(task);
+      return card;
+    })
+  );
+}
+
+function filterTaskArchive(tasks) {
+  const query = state.taskSearch.trim().toLowerCase();
+  const status = state.taskStatusFilter;
+
+  return tasks.filter((task) => {
+    if (status !== "all" && task.status !== status) {
+      return false;
+    }
+
+    if (!query) {
+      return true;
+    }
+
+    return taskSearchText(task).includes(query);
+  });
+}
+
+function taskSearchText(task) {
+  return [
+    task.id,
+    task.title,
+    task.objective,
+    task.status,
+    task.priority,
+    task.assigned_agent_id,
+    task.assigned_agent?.name,
+    task.context?.summary,
+    task.context?.task_brief,
+    task.delivery?.summary,
+    task.delivery?.review?.summary,
+    task.delivery?.review?.reviewed_by,
+    task.delivery?.review?.method,
+    task.delivery?.ai_detection?.summary,
+    ...(task.delivery?.ai_detection?.findings ?? []),
+    ...(task.required_skills ?? []),
+    ...(task.acceptance_criteria ?? []),
+    ...(task.deliverables ?? [])
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function renderTaskArchiveCard(task) {
+  const agent = task.assigned_agent
+    ? `${task.assigned_agent.name} (${task.assigned_agent.id})`
+    : task.assigned_agent_id ?? "-";
+  const aiDetection =
+    task.delivery?.review?.ai_detection ?? task.delivery?.ai_detection ?? null;
+
+  return `
+    <div class="task-card-header">
+      <div>
+        <div class="task-card-title">${escapeHtml(task.id)} · ${escapeHtml(task.title)}</div>
+        <p>${escapeHtml(task.objective || "暂无任务描述。")}</p>
+      </div>
+      <div class="task-card-pills">
+        ${statusPill(formatTaskStatus(task.status))}
+        ${statusPill(formatPriority(task.priority))}
+      </div>
+    </div>
+    <div class="task-card-meta">
+      <span>Agent：${escapeHtml(agent)}</span>
+      <span>上下文：${escapeHtml(task.context_snapshot_id ?? "-")} / ${escapeHtml(formatContextStatus(task.context_status))}</span>
+      <span>创建：${escapeHtml(formatDate(task.created_at))}</span>
+    </div>
+    <div class="task-card-grid">
+      ${renderTaskInfoBlock("执行上下文", [
+        ["任务说明", task.context?.task_brief],
+        ["项目上下文", task.context?.summary],
+        ["准备人", task.context?.prepared_by],
+        ["准备时间", formatDate(task.context?.prepared_at)],
+        ["相关文件", formatOptionalList(task.context?.relevant_files)],
+        ["假设", formatOptionalList(task.context?.assumptions)]
+      ])}
+      ${renderTaskInfoBlock("运行记录", [
+        ["领取时间", formatDate(task.claimed_at)],
+        ["开始时间", formatDate(task.started_at)],
+        ["交付时间", formatDate(task.delivered_at)],
+        ["完成时间", formatDate(task.completed_at)],
+        ["阻塞依赖", formatOptionalList(task.blocked_by)]
+      ])}
+      ${renderTaskDeliveryBlock(task.delivery)}
+      ${renderTaskAiBlock(aiDetection)}
+      ${renderTaskReviewBlock(task)}
+    </div>
+  `;
+}
+
+function renderTaskInfoBlock(title, pairs) {
+  const rows = pairs
+    .filter(([, value]) => value && value !== "-")
+    .map(
+      ([label, value]) => `
+        <div class="task-field">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(value)}</strong>
+        </div>
+      `
+    )
+    .join("");
+
+  return `
+    <section class="task-info-block">
+      <h4>${escapeHtml(title)}</h4>
+      ${rows || `<p class="muted">暂无。</p>`}
+    </section>
+  `;
+}
+
+function renderTaskDeliveryBlock(delivery) {
+  if (!delivery) {
+    return renderTaskInfoBlock("交付记录", [["状态", "暂无交付"]]);
+  }
+
+  return renderTaskInfoBlock("交付记录", [
+    ["交付ID", delivery.id],
+    ["交付状态", delivery.status],
+    ["交付摘要", delivery.summary],
+    ["交付时间", formatDate(delivery.created_at)],
+    ["变更文件", formatOptionalList(delivery.files_changed)],
+    ["验证记录", formatOptionalList(delivery.verification)]
+  ]);
+}
+
+function renderTaskAiBlock(aiDetection) {
+  if (!aiDetection) {
+    return renderTaskInfoBlock("AI检测", [["状态", "暂无记录"]]);
+  }
+
+  return renderTaskInfoBlock("AI检测", [
+    ["状态", aiDetection.status],
+    ["摘要", aiDetection.summary],
+    ["发现", formatOptionalList(aiDetection.findings)]
+  ]);
+}
+
+function renderTaskReviewBlock(task) {
+  const review = task.delivery?.review;
+  if (review) {
+    return renderTaskInfoBlock("审核记录", [
+      ["结论", review.decision],
+      ["审核人", review.reviewed_by],
+      ["审核时间", formatDate(review.reviewed_at)],
+      ["审核方式", review.method],
+      ["通过说明", review.summary],
+      ["上下文更新", review.context_update]
+    ]);
+  }
+
+  if (task.status === "rejected") {
+    return renderTaskInfoBlock("审核记录", [
+      ["结论", "rejected"],
+      ["审核人", task.reviewed_by],
+      ["审核时间", formatDate(task.reviewed_at)],
+      ["退回原因", task.rejection_reason]
+    ]);
+  }
+
+  return renderTaskInfoBlock("审核记录", [["状态", task.status === "review" ? "等待审核" : "暂无审核"]]);
 }
 
 function renderTaskDetail(task) {
@@ -440,8 +638,17 @@ function formatList(values) {
   return values && values.length > 0 ? values.join(", ") : "未指定";
 }
 
+function formatOptionalList(values) {
+  return values && values.length > 0 ? values.join(", ") : null;
+}
+
 function getSelectedProject() {
   return state.data?.projects.find((dashboard) => dashboard.project.id === state.selectedProjectId) ?? null;
+}
+
+function getSelectedTaskIndex() {
+  const selected = getSelectedProject();
+  return selected?.task_index ?? selected?.task_hall ?? [];
 }
 
 function setHealth(health) {
@@ -474,6 +681,8 @@ function setLoading(isLoading) {
   elements.refreshButton.disabled = isLoading;
   elements.runCheckButton.disabled = isLoading;
   elements.saveContextButton.disabled = isLoading;
+  elements.taskSearchInput.disabled = isLoading;
+  elements.taskStatusFilter.disabled = isLoading;
   document.querySelectorAll("[data-task-action]").forEach((button) => {
     button.disabled = isLoading;
   });

@@ -117,6 +117,11 @@ const { task: reviewTask, delivery } = center.deliverTask({
     "Node assertions verified state transitions.",
     "Generated summary file records final task and context state."
   ],
+  ai_detection: {
+    status: "passed",
+    summary: "No risky output or missing verification was detected in the demo delivery.",
+    findings: ["Delivery evidence includes state transition verification."]
+  },
   followups: [
     {
       title: "Prepare CLI commands for real project operations",
@@ -135,17 +140,27 @@ const accepted = center.acceptDelivery({
   steward_id: contextSteward.id,
   context_update:
     "The project now has a verified V1 control loop. Future work should expose reusable commands instead of relying on the demo script.",
+  review_summary:
+    "Accepted because the delivery included assertions, changed-state evidence, and follow-up work.",
   followups: delivery.followups
 });
 
 assert.equal(accepted.task.status, "done");
 assert.equal(accepted.delivery.status, "accepted");
+assert.equal(accepted.delivery.ai_detection.status, "passed");
+assert.equal(accepted.delivery.review.reviewed_by, contextSteward.id);
+assert.equal(accepted.delivery.review.decision, "accepted");
 assert.equal(accepted.project.current_context_snapshot_id, "context-0002");
 assert.equal(center.getAgent(builderAgent.id).status, "available");
 assert.equal(accepted.followup_tasks.length, 1);
 assert.equal(accepted.followup_tasks[0].status, "draft");
 
 const finalTasks = center.listTasks(project.id);
+const dashboard = center.getProjectDashboard(project.id);
+const completedTaskRecord = dashboard.task_index.find((task) => task.id === accepted.task.id);
+assert.equal(dashboard.task_hall.length, 1);
+assert.equal(completedTaskRecord.delivery.review.reviewed_by, contextSteward.id);
+assert.equal(completedTaskRecord.delivery.ai_detection.status, "passed");
 const summaryPath = join(root, "SUMMARY.md");
 mkdirSync(root, { recursive: true });
 writeFileSync(

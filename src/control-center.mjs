@@ -449,6 +449,7 @@ export class ControlCenter {
       files_changed: input.files_changed ?? [],
       verification: input.verification ?? [],
       followups: input.followups ?? [],
+      ai_detection: normalizeAiDetection(input.ai_detection),
       status: "submitted",
       created_at: now()
     };
@@ -535,7 +536,18 @@ export class ControlCenter {
       ...delivery,
       status: "accepted",
       accepted_by: input.steward_id,
-      accepted_at: now()
+      accepted_at: now(),
+      review: {
+        decision: "accepted",
+        reviewed_by: input.steward_id,
+        reviewed_at: now(),
+        method: input.review_method ?? "context_steward_review",
+        summary:
+          input.review_summary ??
+          "Accepted by the Context Steward after reviewing the submitted delivery evidence.",
+        context_update: input.context_update,
+        ai_detection: normalizeAiDetection(input.ai_detection ?? delivery.ai_detection)
+      }
     };
 
     const updatedProject = {
@@ -901,9 +913,19 @@ export class ControlCenter {
     const context = this.getContext(projectId, project.current_context_snapshot_id);
     const latestStatus = this.getLatestProjectStatus(projectId);
     const tasks = this.listTasks(projectId);
-    const taskHall = tasks.map((task) => {
+    const deliveriesById = new Map(
+      this.listDeliveries(projectId).map((delivery) => [delivery.id, delivery])
+    );
+    const agentsById = new Map(this.listAgents().map((agent) => [agent.id, agent]));
+    const taskIndex = tasks.map((task) => {
       const dependencyState = this.getTaskDependencyState(projectId, task);
       const claimability = this.getTaskClaimability(projectId, task);
+      const delivery = task.delivery_id
+        ? deliveriesById.get(task.delivery_id) ?? null
+        : null;
+      const agent = task.assigned_agent_id
+        ? agentsById.get(task.assigned_agent_id) ?? null
+        : null;
 
       return {
         id: task.id,
@@ -919,20 +941,64 @@ export class ControlCenter {
         created_by: task.created_by ?? null,
         created_at: task.created_at ?? null,
         updated_at: task.updated_at ?? null,
+        claimed_at: task.claimed_at ?? null,
+        started_at: task.started_at ?? null,
+        delivered_at: task.delivered_at ?? null,
+        completed_at: task.completed_at ?? null,
+        reviewed_by: task.reviewed_by ?? null,
+        reviewed_at: task.reviewed_at ?? null,
+        rejection_reason: task.rejection_reason ?? null,
         dependencies: dependencyState.dependencies,
         blocked_by: dependencyState.blocked_by,
         is_claimable: claimability.claimable,
         claim_blockers: claimability.reasons,
         parallel_group: task.parallel_group ?? "default",
-        assigned_agent_id: task.assigned_agent_id
+        assigned_agent_id: task.assigned_agent_id,
+        assigned_agent: agent
+          ? {
+              id: agent.id,
+              name: agent.name,
+              role: agent.role,
+              status: agent.status
+            }
+          : null,
+        context: {
+          snapshot_id: task.context_snapshot_id,
+          current_snapshot_id: project.current_context_snapshot_id,
+          status: task.context_status,
+          prepared_by: task.execution_package?.prepared_by ?? null,
+          prepared_at: task.execution_package?.prepared_at ?? null,
+          summary: task.execution_package?.context_summary ?? null,
+          task_brief: task.execution_package?.task_brief ?? null,
+          relevant_files: task.execution_package?.relevant_files ?? [],
+          assumptions: task.execution_package?.assumptions ?? []
+        },
+        delivery: delivery
+          ? {
+              id: delivery.id,
+              status: delivery.status,
+              summary: delivery.summary,
+              files_changed: delivery.files_changed ?? [],
+              verification: delivery.verification ?? [],
+              followups: delivery.followups ?? [],
+              ai_detection: normalizeAiDetection(delivery.ai_detection),
+              created_at: delivery.created_at ?? null,
+              accepted_by: delivery.accepted_by ?? null,
+              accepted_at: delivery.accepted_at ?? null,
+              review: normalizeDeliveryReview(delivery)
+            }
+          : null
       };
     });
+    const taskHall = taskIndex.filter((task) =>
+      ["draft", "ready", "blocked"].includes(task.status)
+    );
     const taskSummary = {
       ...summarizeTasks(tasks),
-      claimable_task_ids: taskHall
+      claimable_task_ids: taskIndex
         .filter((task) => task.is_claimable)
         .map((task) => task.id),
-      dependency_blocked_task_ids: taskHall
+      dependency_blocked_task_ids: taskIndex
         .filter((task) => task.status === "ready" && task.blocked_by.length > 0)
         .map((task) => task.id)
     };
@@ -952,6 +1018,7 @@ export class ControlCenter {
         completed_task_count: context.completed_tasks.length
       },
       task_summary: taskSummary,
+      task_index: taskIndex,
       task_hall: taskHall
     };
   }
@@ -1018,6 +1085,18 @@ export class ControlCenter {
       .filter((fileName) => fileName.endsWith(".json"))
       .sort()
       .map((fileName) => this.readJson(join(tasksDir, fileName)));
+  }
+
+  listDeliveries(projectId) {
+    const deliveriesDir = this.deliveriesDir(projectId);
+    if (!existsSync(deliveriesDir)) {
+      return [];
+    }
+
+    return readdirSync(deliveriesDir)
+      .filter((fileName) => fileName.endsWith(".json"))
+      .sort()
+      .map((fileName) => this.readJson(join(deliveriesDir, fileName)));
   }
 
   updateAgent(agentId, patch) {
@@ -1388,6 +1467,60 @@ function normalizeRequirements(requirements = {}) {
     p1: uniqueStrings(requirements?.p1 ?? []),
     p2: uniqueStrings(requirements?.p2 ?? [])
   };
+}
+
+function normalizeAiDetection(aiDetection = undefined) {
+  if (!aiDetection) {
+    return {
+      status: "not_run",
+      summary: "AI detection has not been recorded for this delivery.",
+      findings: []
+    };
+  }
+
+  if (Array.isArray(aiDetection)) {
+    return {
+      status: aiDetection.length > 0 ? "recorded" : "not_run",
+      summary: "",
+      findings: uniqueStrings(aiDetection)
+    };
+  }
+
+  return {
+    status: aiDetection.status ?? "recorded",
+    summary: aiDetection.summary ?? "",
+    findings: uniqueStrings(aiDetection.findings ?? [])
+  };
+}
+
+function normalizeDeliveryReview(delivery) {
+  if (delivery.review) {
+    return {
+      decision: delivery.review.decision ?? delivery.status,
+      reviewed_by: delivery.review.reviewed_by ?? delivery.accepted_by ?? null,
+      reviewed_at: delivery.review.reviewed_at ?? delivery.accepted_at ?? null,
+      method: delivery.review.method ?? "context_steward_review",
+      summary: delivery.review.summary ?? "",
+      context_update: delivery.review.context_update ?? "",
+      ai_detection: normalizeAiDetection(
+        delivery.review.ai_detection ?? delivery.ai_detection
+      )
+    };
+  }
+
+  if (delivery.accepted_by || delivery.accepted_at) {
+    return {
+      decision: delivery.status,
+      reviewed_by: delivery.accepted_by ?? null,
+      reviewed_at: delivery.accepted_at ?? null,
+      method: "context_steward_review",
+      summary: "",
+      context_update: "",
+      ai_detection: normalizeAiDetection(delivery.ai_detection)
+    };
+  }
+
+  return null;
 }
 
 function compareTasksForClaim(left, right) {

@@ -59,6 +59,8 @@ try {
 
   const project = await getJson(`${baseUrl}/api/projects/web-demo`);
   assert.equal(project.dashboard.task_summary.total, 2);
+  assert.equal(project.dashboard.task_index.length, 2);
+  assert.equal(project.dashboard.task_hall.length, 2);
   assert.equal(project.status_updates.length, 1);
   assert.deepEqual(project.dashboard.current_context.requirements, {
     p0: [],

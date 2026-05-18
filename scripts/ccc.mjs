@@ -40,8 +40,8 @@ Commands:
   claim-task         Agent claims a ready task
   claim-next-task    Agent claims the highest-priority claimable task
   start-task         Agent starts a claimed task
-  deliver-task       Agent submits delivery evidence
-  accept-delivery    Context steward accepts a delivery and advances context
+  deliver-task       Agent submits delivery evidence, including optional AI detection notes
+  accept-delivery    Context steward accepts a delivery and records review evidence
 
 Global options:
   --root <path>      Data root. Defaults to CCC_ROOT or data/workspace
@@ -345,7 +345,8 @@ function handleDeliverTask(center, flags) {
     summary: requiredFlag(flags, "summary"),
     files_changed: collectFlags(flags, "changed-file", "file"),
     verification: collectFlags(flags, "verification"),
-    followups: parseFollowups(collectFlags(flags, "followup"))
+    followups: parseFollowups(collectFlags(flags, "followup")),
+    ai_detection: aiDetectionFromFlags(flags)
   });
 
   return delivered;
@@ -364,6 +365,9 @@ function handleAcceptDelivery(center, flags) {
     task_id: taskId,
     steward_id: requiredAnyFlag(flags, "steward", "steward-id"),
     context_update: requiredAnyFlag(flags, "context-update", "update"),
+    review_method: stringFlag(flags, "review-method"),
+    review_summary: stringFlag(flags, "review-summary", "review-note"),
+    ai_detection: aiDetectionFromFlags(flags),
     followups:
       explicitFollowups.length > 0
         ? parseFollowups(explicitFollowups)
@@ -679,6 +683,22 @@ function requirementsFromFlags(flags) {
   return requirements.p0.length + requirements.p1.length + requirements.p2.length > 0
     ? requirements
     : undefined;
+}
+
+function aiDetectionFromFlags(flags) {
+  const findings = collectFlags(flags, "ai-detection", "ai-finding");
+  const status = stringFlag(flags, "ai-detection-status", "ai-status");
+  const summary = stringFlag(flags, "ai-detection-summary", "ai-summary");
+
+  if (!status && !summary && findings.length === 0) {
+    return undefined;
+  }
+
+  return {
+    status: status ?? (findings.length > 0 ? "recorded" : "not_run"),
+    summary: summary ?? "",
+    findings
+  };
 }
 
 function positiveIntegerFlag(flags, ...names) {

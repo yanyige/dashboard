@@ -31,6 +31,39 @@
     "followups": {
       "type": "array"
     },
+    "ai_detection": {
+      "type": "object",
+      "properties": {
+        "status": { "type": "string" },
+        "summary": { "type": "string" },
+        "findings": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "properties": {
+        "decision": { "type": "string" },
+        "reviewed_by": { "type": "string" },
+        "reviewed_at": { "type": "string" },
+        "method": { "type": "string" },
+        "summary": { "type": "string" },
+        "context_update": { "type": "string" },
+        "ai_detection": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string" },
+            "summary": { "type": "string" },
+            "findings": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
     "status": {
       "type": "string",
       "enum": ["submitted", "accepted", "rejected"]
