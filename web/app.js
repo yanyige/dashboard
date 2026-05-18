@@ -1,6 +1,7 @@
 const state = {
   data: null,
   selectedProjectId: null,
+  taskQueueFilter: "all",
   loading: false
 };
 
@@ -37,8 +38,15 @@ const PRIORITY_LABELS = {
   low: "低"
 };
 
-const QUEUE_STATUSES = new Set(["ready", "claimed", "in_progress", "review", "blocked"]);
+const READY_QUEUE_STATUSES = new Set(["ready", "blocked"]);
 const ACTIVE_STATUSES = new Set(["claimed", "in_progress", "review"]);
+const TASK_QUEUE_FILTERS = [
+  { id: "all", label: "全部" },
+  { id: "ready", label: "任务队列" },
+  { id: "running", label: "运行中" },
+  { id: "done", label: "已完成" },
+  { id: "unissued", label: "未下发" }
+];
 const PRIORITY_ORDER = {
   urgent: 0,
   high: 1,
@@ -92,6 +100,7 @@ const elements = {
   requirementProposalCountLabel: document.getElementById("requirementProposalCountLabel"),
   requirementProposalList: document.getElementById("requirementProposalList"),
   taskCountLabel: document.getElementById("taskCountLabel"),
+  taskFilterControls: document.getElementById("taskFilterControls"),
   taskQueueList: document.getElementById("taskQueueList")
 };
 
@@ -435,19 +444,60 @@ function renderActiveTasks(tasks) {
 
 function renderTaskQueue(tasks) {
   const sortedTasks = [...tasks].sort(compareTasksForQueue);
+  const filteredTasks = sortedTasks.filter((task) => taskMatchesQueueFilter(task, state.taskQueueFilter));
+  const filterLabel = getTaskQueueFilterLabel(state.taskQueueFilter);
   const queuedCount = sortedTasks.filter(isQueuedTask).length;
+  const runningCount = sortedTasks.filter(isActiveTask).length;
+  const doneCount = sortedTasks.filter((task) => task.status === "done").length;
   const unissuedCount = sortedTasks.filter(isUnissuedTask).length;
-  elements.taskCountLabel.textContent = `${queuedCount} 个队列中 / ${unissuedCount} 个未下发 / ${sortedTasks.length} 总计`;
+  elements.taskCountLabel.textContent =
+    `${filterLabel} ${filteredTasks.length} / ${sortedTasks.length} · ${queuedCount} 任务队列 · ${runningCount} 运行中 · ${doneCount} 已完成 · ${unissuedCount} 未下发`;
+  renderTaskFilterControls(sortedTasks);
 
   if (sortedTasks.length === 0) {
     elements.taskQueueList.innerHTML = `<div class="empty-state">当前项目还没有任务。</div>`;
     return;
   }
 
+  if (filteredTasks.length === 0) {
+    elements.taskQueueList.innerHTML = `<div class="empty-state">当前筛选下没有任务。</div>`;
+    return;
+  }
+
   elements.taskQueueList.replaceChildren(
-    ...sortedTasks.map((task) => createTaskCard(task, { active: false, accordion: true }))
+    ...filteredTasks.map((task) => createTaskCard(task, { active: false, accordion: true }))
   );
   expandTaskFromHash();
+}
+
+function renderTaskFilterControls(tasks) {
+  const counts = {
+    all: tasks.length,
+    ready: tasks.filter(isQueuedTask).length,
+    running: tasks.filter(isActiveTask).length,
+    done: tasks.filter((task) => task.status === "done").length,
+    unissued: tasks.filter(isUnissuedTask).length
+  };
+
+  elements.taskFilterControls.replaceChildren(
+    ...TASK_QUEUE_FILTERS.map((filter) => {
+      const button = document.createElement("button");
+      const isActive = state.taskQueueFilter === filter.id;
+      button.className = `task-filter-button${isActive ? " active" : ""}`;
+      button.type = "button";
+      button.dataset.taskFilter = filter.id;
+      button.setAttribute("aria-pressed", String(isActive));
+      button.innerHTML = `
+        <span>${escapeHtml(filter.label)}</span>
+        <strong>${escapeHtml(counts[filter.id] ?? 0)}</strong>
+      `;
+      button.addEventListener("click", () => {
+        state.taskQueueFilter = filter.id;
+        renderProject(getSelectedProject());
+      });
+      return button;
+    })
+  );
 }
 
 function renderRequirementProposals(proposals) {
@@ -847,7 +897,7 @@ function isCompletedProject(dashboard) {
 }
 
 function isQueuedTask(task) {
-  return QUEUE_STATUSES.has(task.status) && task.context_status !== "missing";
+  return READY_QUEUE_STATUSES.has(task.status) && task.context_status === "ready";
 }
 
 function isActiveTask(task) {
@@ -855,7 +905,30 @@ function isActiveTask(task) {
 }
 
 function isUnissuedTask(task) {
-  return task.status === "draft" || task.context_status === "missing";
+  if (isActiveTask(task) || task.status === "done" || task.status === "rejected") {
+    return false;
+  }
+  return task.status === "draft" || ["missing", "stale"].includes(task.context_status);
+}
+
+function taskMatchesQueueFilter(task, filterId) {
+  switch (filterId) {
+    case "ready":
+      return isQueuedTask(task);
+    case "running":
+      return isActiveTask(task);
+    case "done":
+      return task.status === "done";
+    case "unissued":
+      return isUnissuedTask(task);
+    case "all":
+    default:
+      return true;
+  }
+}
+
+function getTaskQueueFilterLabel(filterId) {
+  return TASK_QUEUE_FILTERS.find((filter) => filter.id === filterId)?.label ?? "全部";
 }
 
 function compareTasksForQueue(a, b) {
@@ -902,6 +975,9 @@ function getTaskTimestamp(task) {
 }
 
 function getTaskBucketLabel(task) {
+  if (isActiveTask(task)) {
+    return "运行中";
+  }
   if (isQueuedTask(task)) {
     return "任务队列";
   }
@@ -915,6 +991,9 @@ function getTaskBucketLabel(task) {
 }
 
 function getTaskBucketClass(task) {
+  if (isActiveTask(task)) {
+    return "active";
+  }
   if (isQueuedTask(task)) {
     return "queued";
   }
@@ -978,6 +1057,9 @@ function setLoading(isLoading) {
     button.disabled = isLoading;
   });
   document.querySelectorAll("[data-proposal-action]").forEach((button) => {
+    button.disabled = isLoading;
+  });
+  document.querySelectorAll("[data-task-filter]").forEach((button) => {
     button.disabled = isLoading;
   });
 }

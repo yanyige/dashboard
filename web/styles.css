@@ -506,6 +506,71 @@ h4 {
   gap: 12px;
 }
 
+.task-filter-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -4px 0 14px;
+}
+
+.task-filter-button {
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.task-filter-button strong {
+  min-width: 24px;
+  min-height: 22px;
+  border-radius: 999px;
+  padding: 4px 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.task-filter-button:hover,
+.task-filter-button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.task-filter-button:focus-visible {
+  outline: 3px solid rgba(15, 118, 110, 0.24);
+  outline-offset: 2px;
+}
+
+.task-filter-button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.task-filter-button.active strong {
+  background: rgba(255, 255, 255, 0.18);
+  color: white;
+}
+
+.task-filter-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
 #projectOverviewSection,
 #activeWorkSection,
 #requirementProposalSection,
@@ -545,6 +610,10 @@ h4 {
 
 .task-row-queued {
   border-left: 4px solid var(--blue);
+}
+
+.task-row-active {
+  border-left: 4px solid var(--accent);
 }
 
 .task-row-unissued {
@@ -696,6 +765,11 @@ h4 {
 .queue-badge-queued {
   background: var(--surface-blue);
   color: var(--blue);
+}
+
+.queue-badge-active {
+  background: #e2f5f2;
+  color: var(--accent-strong);
 }
 
 .queue-badge-unissued {

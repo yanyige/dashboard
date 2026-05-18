@@ -174,6 +174,7 @@ try {
   const html = await getText(`${baseUrl}/`);
   assert.match(html, /Codex 控制中心/);
   assert.match(html, /项目看板/);
+  assert.match(html, /taskFilterControls/);
 
   console.log("web smoke passed");
 } finally {
