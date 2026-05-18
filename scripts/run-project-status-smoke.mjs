@@ -83,6 +83,54 @@ assert.equal(dashboard.dashboard.project.health, "at_risk");
 assert.equal(dashboard.dashboard.latest_status.id, "status-0002");
 assert.equal(dashboard.dashboard.task_summary.total, 1);
 assert.equal(dashboard.dashboard.task_hall.length, 1);
+assert.equal(dashboard.dashboard.owner_report_status.state, "unassigned");
+
+const owner = jsonRun([
+  "set-project-owner",
+  "--project",
+  "status-demo",
+  "--thread",
+  "thread-status-owner",
+  "--name",
+  "Status Owner Thread",
+  "--assigned-by",
+  "codex-thread",
+  "--json"
+]);
+assert.equal(owner.project.owner_thread.thread_id, "thread-status-owner");
+
+const ownerReport = jsonRun([
+  "owner-report",
+  "--project",
+  "status-demo",
+  "--thread",
+  "thread-status-owner",
+  "--health",
+  "on_track",
+  "--summary",
+  "Owner thread reports that the project is moving normally.",
+  "--progress",
+  "The first draft is understood by the owner thread.",
+  "--next-action",
+  "Prepare the first task when the owner approves it.",
+  "--proposed-task",
+  "Prepare first task::Turn the owner report into executable task context.::high::workflow",
+  "--json"
+]);
+assert.equal(ownerReport.owner_report.id, "owner-report-0001");
+assert.equal(ownerReport.owner_report.proposed_tasks.length, 1);
+
+const ownerCheck = jsonRun([
+  "check-projects",
+  "--updated-by",
+  "codex-thread",
+  "--note",
+  "owner report check",
+  "--json"
+]);
+const ownerCheckResult = ownerCheck.results.find((result) => result.project_id === "status-demo");
+assert.equal(ownerCheckResult.health, "on_track");
+assert.match(ownerCheckResult.summary, /Owner report/);
 
 const history = jsonRun([
   "list-project-status",
@@ -91,7 +139,7 @@ const history = jsonRun([
   "--json"
 ]);
 
-assert.equal(history.status_updates.length, 2);
+assert.equal(history.status_updates.length, 3);
 
 console.log("project status smoke passed");
 

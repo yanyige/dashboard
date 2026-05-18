@@ -1,37 +1,31 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "ProjectStatusUpdate",
+  "title": "ProjectOwnerReport",
   "type": "object",
   "required": [
     "id",
     "project_id",
+    "thread_id",
     "health",
     "summary",
-    "updated_by",
-    "context_snapshot_id",
-    "task_counts",
-    "context_counts",
     "progress",
     "risks",
     "blockers",
-    "next_actions"
+    "next_actions",
+    "proposed_tasks",
+    "answered_at",
+    "created_at"
   ],
   "properties": {
     "id": { "type": "string" },
     "project_id": { "type": "string" },
+    "thread_id": { "type": "string" },
+    "thread_name": { "type": "string" },
     "health": {
       "type": "string",
       "enum": ["on_track", "at_risk", "blocked", "paused", "done"]
     },
     "summary": { "type": "string" },
-    "updated_by": { "type": "string" },
-    "source": { "type": "string" },
-    "check_run_id": { "type": "string" },
-    "context_snapshot_id": { "type": "string" },
-    "owner_report_id": { "type": "string" },
-    "owner_report_status": { "type": "string" },
-    "task_counts": { "type": "object" },
-    "context_counts": { "type": "object" },
     "progress": {
       "type": "array",
       "items": { "type": "string" }
@@ -47,6 +41,12 @@
     "next_actions": {
       "type": "array",
       "items": { "type": "string" }
-    }
+    },
+    "proposed_tasks": { "type": "array" },
+    "asked_at": {
+      "type": ["string", "null"]
+    },
+    "answered_at": { "type": "string" },
+    "created_at": { "type": "string" }
   }
 }

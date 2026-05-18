@@ -52,6 +52,14 @@ const elements = {
   metricDraft: document.getElementById("metricDraft"),
   metricStale: document.getElementById("metricStale"),
   metricBlocked: document.getElementById("metricBlocked"),
+  ownerReportMeta: document.getElementById("ownerReportMeta"),
+  ownerThreadName: document.getElementById("ownerThreadName"),
+  ownerThreadStatus: document.getElementById("ownerThreadStatus"),
+  ownerReportSummary: document.getElementById("ownerReportSummary"),
+  ownerProgressList: document.getElementById("ownerProgressList"),
+  ownerRiskList: document.getElementById("ownerRiskList"),
+  ownerNextActionList: document.getElementById("ownerNextActionList"),
+  ownerProposedTaskList: document.getElementById("ownerProposedTaskList"),
   contextMeta: document.getElementById("contextMeta"),
   contextSummaryInput: document.getElementById("contextSummaryInput"),
   contextP0List: document.getElementById("contextP0List"),
@@ -327,6 +335,7 @@ function renderProject(dashboard) {
     elements.projectGoal.textContent = "创建或导入项目后开始跟踪状态。";
     setHealth("unknown");
     renderMetrics({});
+    renderOwnerReport(null);
     renderContext(null);
     renderStatus(null);
     renderTasks([]);
@@ -338,6 +347,7 @@ function renderProject(dashboard) {
   elements.projectGoal.textContent = dashboard.project.goal;
   setHealth(dashboard.project.health);
   renderMetrics(dashboard.task_summary);
+  renderOwnerReport(dashboard);
   renderContext(dashboard.current_context);
   renderStatus(dashboard.latest_status);
   renderTasks(dashboard.task_hall);
@@ -352,6 +362,58 @@ function renderMetrics(summary) {
   elements.metricDraft.textContent = byStatus.draft ?? 0;
   elements.metricStale.textContent = byContext.stale ?? 0;
   elements.metricBlocked.textContent = byStatus.blocked ?? 0;
+}
+
+function renderOwnerReport(dashboard) {
+  if (!dashboard) {
+    elements.ownerReportMeta.textContent = "暂无负责人报告";
+    elements.ownerThreadName.textContent = "未绑定负责人 Thread";
+    elements.ownerThreadStatus.textContent = "未绑定";
+    elements.ownerThreadStatus.className = "pill owner-unassigned";
+    elements.ownerReportSummary.textContent = "绑定项目负责人 Thread 后，这里会显示该 Thread 定时上报的项目状态。";
+    renderList(elements.ownerProgressList, []);
+    renderList(elements.ownerRiskList, []);
+    renderList(elements.ownerNextActionList, []);
+    renderList(elements.ownerProposedTaskList, []);
+    return;
+  }
+
+  const ownerThread = dashboard.owner_thread;
+  const report = dashboard.latest_owner_report;
+  const ownerStatus = dashboard.owner_report_status ?? {};
+  elements.ownerThreadName.textContent = ownerThread
+    ? `${ownerThread.name} (${ownerThread.thread_id})`
+    : "未绑定负责人 Thread";
+  elements.ownerThreadStatus.textContent = ownerStatus.label ?? "未绑定";
+  elements.ownerThreadStatus.className = `pill owner-${ownerStatus.state ?? "unassigned"}`;
+
+  if (!report) {
+    elements.ownerReportMeta.textContent = ownerThread ? "等待负责人上报" : "暂无负责人报告";
+    elements.ownerReportSummary.textContent = ownerThread
+      ? "负责人 Thread 已绑定，但还没有提交项目状态报告。"
+      : "绑定项目负责人 Thread 后，这里会显示该 Thread 定时上报的项目状态。";
+    renderList(elements.ownerProgressList, []);
+    renderList(elements.ownerRiskList, []);
+    renderList(elements.ownerNextActionList, []);
+    renderList(elements.ownerProposedTaskList, []);
+    return;
+  }
+
+  const freshness = ownerStatus.freshness_minutes === null || ownerStatus.freshness_minutes === undefined
+    ? ""
+    : ` | ${ownerStatus.freshness_minutes} 分钟前`;
+  elements.ownerReportMeta.textContent = `${report.id} | ${formatDate(report.answered_at)}${freshness}`;
+  elements.ownerReportSummary.textContent = report.summary;
+  renderList(elements.ownerProgressList, report.progress?.map(translateStatusText));
+  renderList(
+    elements.ownerRiskList,
+    [...(report.risks ?? []), ...(report.blockers ?? [])].map(translateStatusText)
+  );
+  renderList(elements.ownerNextActionList, report.next_actions?.map(translateStatusText));
+  renderList(
+    elements.ownerProposedTaskList,
+    (report.proposed_tasks ?? []).map((task) => `${task.title}：${task.objective}`)
+  );
 }
 
 function renderStatus(status) {
@@ -535,6 +597,8 @@ function taskSearchText(task) {
     task.status,
     task.priority,
     task.assigned_agent_id,
+    task.project_owner_thread_id,
+    task.owner_report_id,
     task.assigned_agent?.name,
     task.context?.summary,
     task.context?.task_brief,
@@ -573,6 +637,8 @@ function renderTaskArchiveCard(task) {
     </div>
     <div class="task-card-meta">
       <span>Agent：${escapeHtml(agent)}</span>
+      <span>负责人：${escapeHtml(task.project_owner_thread_id ?? "-")}</span>
+      <span>负责人报告：${escapeHtml(task.owner_report_id ?? "-")}</span>
       <span>上下文：${escapeHtml(task.context_snapshot_id ?? "-")} / ${escapeHtml(formatContextStatus(task.context_status))}</span>
       <span>创建：${escapeHtml(formatDate(task.created_at))}</span>
     </div>
@@ -675,6 +741,8 @@ function renderTaskReviewBlock(task) {
 function renderTaskDetail(task) {
   const meta = [
     `技能：${formatList(task.required_skills)}`,
+    task.project_owner_thread_id ? `负责人：${task.project_owner_thread_id}` : null,
+    task.owner_report_id ? `报告：${task.owner_report_id}` : null,
     task.created_by ? `创建：${task.created_by}` : null,
     task.created_at ? `时间：${formatDate(task.created_at)}` : null
   ].filter(Boolean);

@@ -260,6 +260,22 @@ h4 {
   background: #e7f0f8;
 }
 
+.owner-fresh {
+  color: var(--green);
+  background: #e9f6ed;
+}
+
+.owner-stale,
+.owner-missing {
+  color: var(--amber);
+  background: #fff2dc;
+}
+
+.owner-unassigned {
+  color: var(--muted);
+  background: var(--surface-soft);
+}
+
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -320,6 +336,27 @@ h4 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 18px;
+}
+
+.owner-report-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.owner-thread-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.owner-thread-line strong {
+  overflow-wrap: anywhere;
+}
+
+.owner-report-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .context-panel {
@@ -697,6 +734,7 @@ tr:last-child td {
   .metrics-grid,
   .status-layout,
   .requirements-grid,
+  .owner-report-grid,
   .task-filter-bar,
   .task-card-grid,
   .split-list {

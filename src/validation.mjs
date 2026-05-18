@@ -44,6 +44,9 @@ export function validateRecord(type, value) {
     case "delivery":
       validateDelivery(value, errors);
       break;
+    case "owner-report":
+      validateOwnerReport(value, errors);
+      break;
     default:
       throw new Error(`Unknown validation record type: ${type}`);
   }
@@ -92,6 +95,8 @@ function validateProject(value, errors) {
   enumValue(value, "health", PROJECT_HEALTH, errors);
   requiredString(value, "current_context_snapshot_id", errors);
   optionalStringOrNull(value, "current_status_update_id", errors);
+  optionalStringOrNull(value, "current_owner_report_id", errors);
+  optionalOwnerThread(value, "owner_thread", errors);
   optionalString(value, "created_by", errors);
 }
 
@@ -120,6 +125,8 @@ function validateTask(value, errors) {
   enumValue(value, "status", TASK_STATUSES, errors);
   enumValue(value, "context_status", CONTEXT_STATUSES, errors);
   optionalStringOrNull(value, "context_snapshot_id", errors);
+  optionalStringOrNull(value, "project_owner_thread_id", errors);
+  optionalStringOrNull(value, "owner_report_id", errors);
   arrayOfStrings(value, "required_skills", errors);
   optionalArrayOfStrings(value, "dependencies", errors);
   optionalString(value, "parallel_group", errors);
@@ -168,12 +175,31 @@ function validateProjectStatus(value, errors) {
   requiredString(value, "context_snapshot_id", errors);
   optionalString(value, "source", errors);
   optionalString(value, "check_run_id", errors);
+  optionalString(value, "owner_report_id", errors);
+  optionalString(value, "owner_report_status", errors);
   objectValue(value, "task_counts", errors);
   objectValue(value, "context_counts", errors);
   arrayOfStrings(value, "progress", errors);
   arrayOfStrings(value, "risks", errors);
   arrayOfStrings(value, "blockers", errors);
   arrayOfStrings(value, "next_actions", errors);
+}
+
+function validateOwnerReport(value, errors) {
+  requiredString(value, "id", errors);
+  requiredString(value, "project_id", errors);
+  requiredString(value, "thread_id", errors);
+  optionalString(value, "thread_name", errors);
+  enumValue(value, "health", PROJECT_HEALTH.filter((health) => health !== "unknown"), errors);
+  requiredString(value, "summary", errors);
+  arrayOfStrings(value, "progress", errors);
+  arrayOfStrings(value, "risks", errors);
+  arrayOfStrings(value, "blockers", errors);
+  arrayOfStrings(value, "next_actions", errors);
+  arrayValue(value, "proposed_tasks", errors);
+  optionalStringOrNull(value, "asked_at", errors);
+  requiredString(value, "answered_at", errors);
+  requiredString(value, "created_at", errors);
 }
 
 function validateProjectCheck(value, errors) {
@@ -263,6 +289,21 @@ function optionalRequirements(value, field, errors) {
   for (const priority of ["p0", "p1", "p2"]) {
     optionalArrayOfStrings(value[field], priority, errors);
   }
+}
+
+function optionalOwnerThread(value, field, errors) {
+  if (value?.[field] === undefined || value?.[field] === null) {
+    return;
+  }
+
+  objectValue(value, field, errors);
+  requiredString(value[field], "thread_id", errors);
+  optionalString(value[field], "name", errors);
+  optionalString(value[field], "role", errors);
+  optionalString(value[field], "note", errors);
+  optionalString(value[field], "assigned_by", errors);
+  optionalString(value[field], "assigned_at", errors);
+  optionalString(value[field], "updated_at", errors);
 }
 
 function optionalAiDetection(value, field, errors) {

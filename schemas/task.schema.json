@@ -39,6 +39,12 @@
     "context_snapshot_id": {
       "type": ["string", "null"]
     },
+    "project_owner_thread_id": {
+      "type": ["string", "null"]
+    },
+    "owner_report_id": {
+      "type": ["string", "null"]
+    },
     "required_skills": {
       "type": "array",
       "items": { "type": "string" }

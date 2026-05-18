@@ -19,6 +19,21 @@
     "current_status_update_id": {
       "type": ["string", "null"]
     },
+    "current_owner_report_id": {
+      "type": ["string", "null"]
+    },
+    "owner_thread": {
+      "type": ["object", "null"],
+      "properties": {
+        "thread_id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "note": { "type": "string" },
+        "assigned_by": { "type": "string" },
+        "assigned_at": { "type": "string" },
+        "updated_at": { "type": "string" }
+      }
+    },
     "github": {
       "type": ["object", "null"]
     },

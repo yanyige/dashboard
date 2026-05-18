@@ -101,6 +101,50 @@ async function handleApi({ center, request, response, url }) {
     return;
   }
 
+  const ownerThreadMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/owner-thread$/);
+  if (request.method === "POST" && ownerThreadMatch) {
+    const projectId = decodeURIComponent(ownerThreadMatch[1]);
+    const body = await readJsonBody(request);
+    const result = center.setProjectOwnerThread({
+      project_id: projectId,
+      thread_id: body.thread_id,
+      name: body.name,
+      role: body.role,
+      note: body.note,
+      assigned_by: body.assigned_by ?? WEB_STEWARD_ID
+    });
+    sendJson(response, 200, {
+      ...result,
+      dashboard: center.getProjectDashboard(projectId)
+    });
+    return;
+  }
+
+  const ownerReportMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/owner-reports$/);
+  if (request.method === "POST" && ownerReportMatch) {
+    const projectId = decodeURIComponent(ownerReportMatch[1]);
+    const body = await readJsonBody(request);
+    const result = center.submitProjectOwnerReport({
+      project_id: projectId,
+      thread_id: body.thread_id,
+      thread_name: body.thread_name,
+      health: body.health,
+      summary: body.summary,
+      progress: body.progress,
+      risks: body.risks,
+      blockers: body.blockers,
+      next_actions: body.next_actions,
+      proposed_tasks: body.proposed_tasks,
+      asked_at: body.asked_at,
+      answered_at: body.answered_at
+    });
+    sendJson(response, 201, {
+      ...result,
+      dashboard: center.getProjectDashboard(projectId)
+    });
+    return;
+  }
+
   const approveTaskMatch = url.pathname.match(
     /^\/api\/projects\/([^/]+)\/tasks\/([^/]+)\/approve$/
   );
@@ -151,7 +195,8 @@ async function handleApi({ center, request, response, url }) {
     const projectId = decodeURIComponent(projectMatch[1]);
     sendJson(response, 200, {
       dashboard: center.getProjectDashboard(projectId),
-      status_updates: center.listProjectStatusUpdates(projectId)
+      status_updates: center.listProjectStatusUpdates(projectId),
+      owner_reports: center.listProjectOwnerReports(projectId)
     });
     return;
   }

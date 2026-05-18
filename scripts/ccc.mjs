@@ -22,6 +22,10 @@ Commands:
                     Update the versioned project context and P0/P1/P2 requirements
   refresh-project-context
                     Refresh project context by reading the local repository README
+  set-project-owner Set the project owner Thread
+  owner-report      Submit a project owner Thread status report
+  list-owner-reports
+                    List project owner Thread status reports
   update-project-status
                     Write a Context Steward project status snapshot
   show-project-dashboard
@@ -66,6 +70,10 @@ const handlers = {
   "archive-project": handleArchiveProject,
   "update-project-context": handleUpdateProjectContext,
   "refresh-project-context": handleRefreshProjectContext,
+  "set-project-owner": handleSetProjectOwner,
+  "owner-report": handleOwnerReport,
+  "submit-owner-report": handleOwnerReport,
+  "list-owner-reports": handleListOwnerReports,
   "update-project-status": handleUpdateProjectStatus,
   "show-project-dashboard": handleShowProjectDashboard,
   "list-project-status": handleListProjectStatus,
@@ -211,6 +219,38 @@ function handleRefreshProjectContext(center, flags) {
     readme_path: stringFlag(flags, "readme", "readme-path"),
     note: stringFlag(flags, "note") ?? "CLI README context refresh."
   });
+}
+
+function handleSetProjectOwner(center, flags) {
+  return center.setProjectOwnerThread({
+    project_id: projectFlag(flags),
+    thread_id: requiredAnyFlag(flags, "thread", "thread-id"),
+    name: stringFlag(flags, "name", "thread-name"),
+    role: stringFlag(flags, "role") ?? "project_owner",
+    note: stringFlag(flags, "note") ?? "",
+    assigned_by: stringFlag(flags, "assigned-by") ?? "codex-thread"
+  });
+}
+
+function handleOwnerReport(center, flags) {
+  return center.submitProjectOwnerReport({
+    project_id: projectFlag(flags),
+    thread_id: requiredAnyFlag(flags, "thread", "thread-id"),
+    thread_name: stringFlag(flags, "thread-name", "name"),
+    health: requiredFlag(flags, "health"),
+    summary: requiredFlag(flags, "summary"),
+    progress: collectFlags(flags, "progress"),
+    risks: collectFlags(flags, "risk"),
+    blockers: collectFlags(flags, "blocker"),
+    next_actions: collectFlags(flags, "next-action", "next"),
+    proposed_tasks: parseFollowups(collectFlags(flags, "proposed-task", "task-proposal")),
+    asked_at: stringFlag(flags, "asked-at"),
+    answered_at: stringFlag(flags, "answered-at")
+  });
+}
+
+function handleListOwnerReports(center, flags) {
+  return { owner_reports: center.listProjectOwnerReports(projectFlag(flags)) };
 }
 
 function handleUpdateProjectStatus(center, flags) {
@@ -453,6 +493,29 @@ function printResult(command, result, flags) {
     case "refresh-project-context":
       console.log(
         `refreshed context ${result.context.id} from ${result.readme.path}; stale tasks=${result.stale_tasks.length}`
+      );
+      break;
+    case "set-project-owner":
+      console.log(
+        `set owner thread ${result.project.owner_thread.thread_id} for ${result.project.id}`
+      );
+      break;
+    case "owner-report":
+    case "submit-owner-report":
+      console.log(
+        `submitted owner report ${result.owner_report.id}; health=${result.owner_report.health}`
+      );
+      break;
+    case "list-owner-reports":
+      printRows(
+        result.owner_reports.map((report) => [
+          report.id,
+          report.thread_id,
+          report.health,
+          report.answered_at,
+          report.summary
+        ]),
+        ["id", "thread", "health", "answered_at", "summary"]
       );
       break;
     case "update-project-status":
@@ -782,6 +845,14 @@ function printDashboard(dashboard) {
   console.log(`health: ${dashboard.project.health}`);
   console.log(`lifecycle: ${dashboard.project.status}`);
   console.log(`context: ${dashboard.current_context.id}`);
+  console.log(
+    `owner thread: ${dashboard.owner_thread?.thread_id ?? "-"} (${dashboard.owner_report_status?.state ?? "unassigned"})`
+  );
+  if (dashboard.latest_owner_report) {
+    console.log(
+      `owner report: ${dashboard.latest_owner_report.id} ${dashboard.latest_owner_report.health} ${dashboard.latest_owner_report.summary}`
+    );
+  }
   if (latestStatus) {
     console.log(`latest update: ${latestStatus.id} by ${latestStatus.updated_by}`);
     console.log(`summary: ${latestStatus.summary}`);

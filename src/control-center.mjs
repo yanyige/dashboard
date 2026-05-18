@@ -69,6 +69,7 @@ export class ControlCenter {
     mkdirSync(this.contextsDir(project.id), { recursive: true });
     mkdirSync(this.tasksDir(project.id), { recursive: true });
     mkdirSync(this.deliveriesDir(project.id), { recursive: true });
+    mkdirSync(this.ownerReportsDir(project.id), { recursive: true });
     mkdirSync(this.statusUpdatesDir(project.id), { recursive: true });
 
     const contextSnapshot = {
@@ -102,6 +103,8 @@ export class ControlCenter {
       health: project.health ?? "unknown",
       current_context_snapshot_id: contextSnapshot.id,
       current_status_update_id: null,
+      current_owner_report_id: null,
+      owner_thread: normalizeOwnerThread(project.owner_thread),
       github: project.github ?? null,
       created_by: project.created_by ?? "system",
       created_at: now(),
@@ -256,10 +259,100 @@ export class ControlCenter {
     };
   }
 
+  setProjectOwnerThread(input) {
+    requireFields(input, ["project_id", "thread_id", "assigned_by"]);
+
+    const project = this.getProject(input.project_id);
+    const ownerThread = normalizeOwnerThread({
+      thread_id: input.thread_id,
+      name: input.name ?? input.thread_id,
+      role: input.role ?? "project_owner",
+      note: input.note ?? "",
+      assigned_by: input.assigned_by,
+      assigned_at: project.owner_thread?.assigned_at ?? now(),
+      updated_at: now()
+    });
+    const updatedProject = {
+      ...project,
+      owner_thread: ownerThread,
+      updated_at: now()
+    };
+
+    this.writeRecord("project", this.projectPath(input.project_id), updatedProject);
+    this.appendEvent("project.owner_thread_set", {
+      project_id: input.project_id,
+      thread_id: ownerThread.thread_id,
+      assigned_by: input.assigned_by
+    });
+
+    return { project: updatedProject };
+  }
+
+  submitProjectOwnerReport(input) {
+    requireFields(input, ["project_id", "thread_id", "health", "summary"]);
+
+    const project = this.getProject(input.project_id);
+    if (
+      project.owner_thread?.thread_id &&
+      project.owner_thread.thread_id !== input.thread_id
+    ) {
+      throw new Error(
+        `Project owner thread mismatch: expected ${project.owner_thread.thread_id}, got ${input.thread_id}`
+      );
+    }
+
+    const reportId = this.nextId(this.ownerReportsDir(input.project_id), "owner-report");
+    const report = {
+      id: reportId,
+      project_id: input.project_id,
+      thread_id: input.thread_id,
+      thread_name: input.thread_name ?? project.owner_thread?.name ?? input.thread_id,
+      health: input.health,
+      summary: input.summary,
+      progress: input.progress ?? [],
+      risks: input.risks ?? [],
+      blockers: input.blockers ?? [],
+      next_actions: input.next_actions ?? [],
+      proposed_tasks: normalizeProposedTasks(input.proposed_tasks ?? []),
+      asked_at: input.asked_at ?? null,
+      answered_at: input.answered_at ?? now(),
+      created_at: now()
+    };
+    const updatedProject = {
+      ...project,
+      owner_thread: project.owner_thread ?? normalizeOwnerThread({
+        thread_id: input.thread_id,
+        name: input.thread_name ?? input.thread_id,
+        role: "project_owner",
+        assigned_by: input.thread_id,
+        assigned_at: now(),
+        updated_at: now()
+      }),
+      current_owner_report_id: report.id,
+      updated_at: now()
+    };
+
+    this.writeRecord(
+      "owner-report",
+      this.ownerReportPath(input.project_id, report.id),
+      report
+    );
+    this.writeRecord("project", this.projectPath(input.project_id), updatedProject);
+    this.appendEvent("project.owner_report_submitted", {
+      project_id: input.project_id,
+      thread_id: input.thread_id,
+      owner_report_id: report.id,
+      health: report.health
+    });
+
+    return { project: updatedProject, owner_report: report };
+  }
+
   publishTask(task) {
     requireFields(task, ["project_id", "title", "objective", "created_by"]);
     this.assertProjectAcceptsWork(task.project_id, "publish tasks");
 
+    const project = this.getProject(task.project_id);
     const taskId = this.nextId(this.tasksDir(task.project_id), "task");
     const taskRecord = {
       id: taskId,
@@ -272,6 +365,9 @@ export class ControlCenter {
       status: "draft",
       context_status: "missing",
       context_snapshot_id: null,
+      project_owner_thread_id:
+        task.project_owner_thread_id ?? project.owner_thread?.thread_id ?? null,
+      owner_report_id: task.owner_report_id ?? project.current_owner_report_id ?? null,
       required_skills: task.required_skills ?? [],
       assigned_agent_id: null,
       execution_package: null,
@@ -701,6 +797,8 @@ export class ControlCenter {
       source: input.source ?? "manual",
       check_run_id: input.check_run_id,
       context_snapshot_id: project.current_context_snapshot_id,
+      owner_report_id: input.owner_report_id,
+      owner_report_status: input.owner_report_status,
       task_counts: {
         total: taskSnapshot.total,
         ...taskSnapshot.by_status
@@ -838,6 +936,8 @@ export class ControlCenter {
       return {
         health: "done",
         summary: "Project is archived.",
+        owner_report_id: dashboard.latest_owner_report?.id,
+        owner_report_status: dashboard.owner_report_status.state,
         progress: [
           `Project lifecycle is archived.`,
           `Task hall is retained with ${taskSummary.total} historical task(s).`
@@ -846,6 +946,31 @@ export class ControlCenter {
         blockers: [],
         next_actions: []
       };
+    }
+
+    if (
+      dashboard.owner_report_status.state === "fresh" &&
+      dashboard.latest_owner_report
+    ) {
+      return buildAssessmentFromOwnerReport({
+        report: dashboard.latest_owner_report,
+        ownerStatus: dashboard.owner_report_status,
+        taskSummary
+      });
+    }
+
+    if (dashboard.owner_report_status.state === "missing") {
+      risks.push(
+        `Project owner thread ${dashboard.owner_thread.thread_id} has not submitted a status report yet.`
+      );
+      nextActions.push("Ask the project owner thread to submit its first owner report.");
+    }
+
+    if (dashboard.owner_report_status.state === "stale") {
+      risks.push(
+        `Project owner report ${dashboard.latest_owner_report.id} is stale; last answered at ${dashboard.latest_owner_report.answered_at}.`
+      );
+      nextActions.push("Ask the project owner thread to submit a fresh status report.");
     }
 
     progress.push(`Current context is ${dashboard.current_context.id}.`);
@@ -925,6 +1050,8 @@ export class ControlCenter {
         risks,
         blockers
       }),
+      owner_report_id: dashboard.latest_owner_report?.id,
+      owner_report_status: dashboard.owner_report_status.state,
       progress,
       risks,
       blockers,
@@ -1006,6 +1133,19 @@ export class ControlCenter {
     return this.readJson(this.deliveryPath(projectId, deliveryId));
   }
 
+  getProjectOwnerReport(projectId, reportId) {
+    return this.readJson(this.ownerReportPath(projectId, reportId));
+  }
+
+  getLatestProjectOwnerReport(projectId) {
+    const project = this.getProject(projectId);
+    if (project.current_owner_report_id) {
+      return this.getProjectOwnerReport(projectId, project.current_owner_report_id);
+    }
+
+    return this.listProjectOwnerReports(projectId).at(-1) ?? null;
+  }
+
   getProjectStatusUpdate(projectId, statusUpdateId) {
     return this.readJson(this.statusUpdatePath(projectId, statusUpdateId));
   }
@@ -1022,6 +1162,8 @@ export class ControlCenter {
     const project = this.getProject(projectId);
     const context = this.getContext(projectId, project.current_context_snapshot_id);
     const latestStatus = this.getLatestProjectStatus(projectId);
+    const latestOwnerReport = this.getLatestProjectOwnerReport(projectId);
+    const ownerReportStatus = getOwnerReportStatus(project, latestOwnerReport);
     const tasks = this.listTasks(projectId);
     const deliveriesById = new Map(
       this.listDeliveries(projectId).map((delivery) => [delivery.id, delivery])
@@ -1044,6 +1186,10 @@ export class ControlCenter {
         status: task.status,
         context_status: task.context_status,
         priority: task.priority,
+        project_owner_thread_id:
+          task.project_owner_thread_id ?? project.owner_thread?.thread_id ?? null,
+        owner_report_id:
+          task.owner_report_id ?? project.current_owner_report_id ?? latestOwnerReport?.id ?? null,
         required_skills: task.required_skills ?? [],
         acceptance_criteria: task.acceptance_criteria ?? [],
         deliverables: task.deliverables ?? [],
@@ -1115,6 +1261,9 @@ export class ControlCenter {
 
     return {
       project,
+      owner_thread: project.owner_thread ?? null,
+      latest_owner_report: latestOwnerReport,
+      owner_report_status: ownerReportStatus,
       latest_status: latestStatus,
       current_context: {
         id: context.id,
@@ -1163,6 +1312,18 @@ export class ControlCenter {
       .filter((fileName) => fileName.endsWith(".json"))
       .sort()
       .map((fileName) => this.readJson(join(statusUpdatesDir, fileName)));
+  }
+
+  listProjectOwnerReports(projectId) {
+    const ownerReportsDir = this.ownerReportsDir(projectId);
+    if (!existsSync(ownerReportsDir)) {
+      return [];
+    }
+
+    return readdirSync(ownerReportsDir)
+      .filter((fileName) => fileName.endsWith(".json"))
+      .sort()
+      .map((fileName) => this.readJson(join(ownerReportsDir, fileName)));
   }
 
   getProjectCheck(checkId) {
@@ -1490,6 +1651,14 @@ export class ControlCenter {
     return join(this.deliveriesDir(projectId), `${deliveryId}.json`);
   }
 
+  ownerReportsDir(projectId) {
+    return join(this.projectDir(projectId), "owner-reports");
+  }
+
+  ownerReportPath(projectId, reportId) {
+    return join(this.ownerReportsDir(projectId), `${reportId}.json`);
+  }
+
   statusUpdatesDir(projectId) {
     return join(this.projectDir(projectId), "status-updates");
   }
@@ -1577,6 +1746,92 @@ function normalizeRequirements(requirements = {}) {
     p0: uniqueStrings(requirements?.p0 ?? []),
     p1: uniqueStrings(requirements?.p1 ?? []),
     p2: uniqueStrings(requirements?.p2 ?? [])
+  };
+}
+
+function normalizeOwnerThread(ownerThread = null) {
+  if (!ownerThread?.thread_id) {
+    return null;
+  }
+
+  const nowValue = now();
+  return {
+    thread_id: ownerThread.thread_id,
+    name: ownerThread.name ?? ownerThread.thread_id,
+    role: ownerThread.role ?? "project_owner",
+    note: ownerThread.note ?? "",
+    assigned_by: ownerThread.assigned_by ?? "system",
+    assigned_at: ownerThread.assigned_at ?? nowValue,
+    updated_at: ownerThread.updated_at ?? nowValue
+  };
+}
+
+function normalizeProposedTasks(tasks = []) {
+  return tasks
+    .map((task) => ({
+      title: String(task.title ?? "").trim(),
+      objective: String(task.objective ?? "").trim(),
+      priority: task.priority ?? "medium",
+      required_skills: uniqueStrings(task.required_skills ?? task.skills ?? [])
+    }))
+    .filter((task) => task.title && task.objective);
+}
+
+function getOwnerReportStatus(project, report) {
+  const ownerThread = project.owner_thread;
+  if (!ownerThread?.thread_id) {
+    return {
+      state: "unassigned",
+      label: "未绑定负责人 Thread",
+      freshness_minutes: null
+    };
+  }
+  if (!report) {
+    return {
+      state: "missing",
+      label: "负责人尚未上报",
+      freshness_minutes: null
+    };
+  }
+
+  const answeredAt = Date.parse(report.answered_at ?? report.created_at ?? "");
+  const ageMs = Number.isNaN(answeredAt) ? Infinity : Date.now() - answeredAt;
+  const freshnessMinutes = Number.isFinite(ageMs)
+    ? Math.max(0, Math.round(ageMs / 60000))
+    : null;
+  const isFresh = ageMs <= 30 * 60 * 1000;
+
+  return {
+    state: isFresh ? "fresh" : "stale",
+    label: isFresh ? "负责人报告新鲜" : "负责人报告已过期",
+    freshness_minutes: freshnessMinutes,
+    stale_after_minutes: 30
+  };
+}
+
+function buildAssessmentFromOwnerReport({ report, ownerStatus, taskSummary }) {
+  const proposedTaskCount = report.proposed_tasks?.length ?? 0;
+  const progress = [
+    `Project owner thread ${report.thread_id} reported at ${report.answered_at}.`,
+    ...report.progress
+  ];
+  const nextActions = [...report.next_actions];
+  if (proposedTaskCount > 0) {
+    nextActions.push(
+      `Review ${proposedTaskCount} task proposal(s) from owner report ${report.id}.`
+    );
+  }
+
+  return {
+    health: report.health,
+    summary: `Owner report: ${report.summary}`,
+    owner_report_id: report.id,
+    owner_report_status: ownerStatus.state,
+    progress,
+    risks: report.risks,
+    blockers: report.blockers,
+    next_actions: nextActions,
+    task_counts: taskSummary
   };
 }
 
