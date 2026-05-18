@@ -1,4 +1,5 @@
 import {
+  appendFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -1038,6 +1039,7 @@ export class ControlCenter {
     this.appendEvent("delivery.accepted", {
       project_id: input.project_id,
       task_id: input.task_id,
+      delivery_id: delivery.id,
       reviewer_id: reviewer.id,
       context_steward_id: steward.id,
       next_context_snapshot_id: nextContext.id,
@@ -1654,6 +1656,43 @@ export class ControlCenter {
       .sort(compareTasksForClaim);
   }
 
+  listAuditEvents(filters = {}) {
+    if (!existsSync(this.auditLogPath())) {
+      return [];
+    }
+
+    const events = readFileSync(this.auditLogPath(), "utf8")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+      .filter((event) => {
+        if (filters.type && event.type !== filters.type) {
+          return false;
+        }
+        if (filters.project_id && event.project_id !== filters.project_id) {
+          return false;
+        }
+        if (filters.task_id && event.task_id !== filters.task_id) {
+          return false;
+        }
+        if (
+          filters.agent_id &&
+          ![
+            event.agent_id,
+            event.actor_id,
+            event.reviewer_id,
+            event.context_steward_id
+          ].includes(filters.agent_id)
+        ) {
+          return false;
+        }
+        return true;
+      });
+
+    return filters.limit ? events.slice(-filters.limit) : events;
+  }
+
   listProjectStatusUpdates(projectId) {
     const statusUpdatesDir = this.statusUpdatesDir(projectId);
     if (!existsSync(statusUpdatesDir)) {
@@ -1938,6 +1977,7 @@ export class ControlCenter {
     mkdirSync(join(this.root, "agents"), { recursive: true });
     mkdirSync(join(this.root, "projects"), { recursive: true });
     mkdirSync(this.projectChecksDir(), { recursive: true });
+    mkdirSync(this.auditLogDir(), { recursive: true });
 
     if (!existsSync(this.agentRegistryPath())) {
       this.writeJson(this.agentRegistryPath(), {
@@ -1949,16 +1989,45 @@ export class ControlCenter {
     if (!existsSync(this.eventsPath())) {
       this.writeJson(this.eventsPath(), []);
     }
+    if (!existsSync(this.auditLogPath())) {
+      writeFileSync(this.auditLogPath(), "");
+    }
   }
 
   appendEvent(type, payload) {
+    const at = now();
+    const auditEvent = this.buildAuditEvent(type, payload, at);
     const events = this.readJson(this.eventsPath(), []);
-    events.push({
-      type,
-      payload,
-      at: now()
-    });
+    events.push(auditEvent);
     this.writeJson(this.eventsPath(), events);
+    appendFileSync(this.auditLogPath(), `${JSON.stringify(auditEvent)}\n`);
+  }
+
+  buildAuditEvent(type, payload, at) {
+    return {
+      id: this.nextAuditEventId(),
+      at,
+      type,
+      actor_id: getAuditActorId(payload),
+      project_id: payload.project_id ?? null,
+      task_id: payload.task_id ?? null,
+      delivery_id: payload.delivery_id ?? null,
+      agent_id: payload.agent_id ?? null,
+      reviewer_id: payload.reviewer_id ?? null,
+      context_steward_id: payload.context_steward_id ?? payload.steward_id ?? null,
+      score_event: normalizeScoreEvent(payload),
+      payload
+    };
+  }
+
+  nextAuditEventId() {
+    const existingCount = existsSync(this.auditLogPath())
+      ? readFileSync(this.auditLogPath(), "utf8")
+          .split("\n")
+          .filter((line) => line.trim()).length
+      : 0;
+
+    return `audit-${String(existingCount + 1).padStart(6, "0")}`;
   }
 
   readJson(path, fallback = undefined) {
@@ -2000,6 +2069,14 @@ export class ControlCenter {
 
   eventsPath() {
     return join(this.root, "events.json");
+  }
+
+  auditLogDir() {
+    return join(this.root, "audit-log");
+  }
+
+  auditLogPath() {
+    return join(this.auditLogDir(), "events.jsonl");
   }
 
   projectChecksDir() {
@@ -2832,6 +2909,37 @@ function normalizeAiDetection(aiDetection = undefined) {
     status: aiDetection.status ?? "recorded",
     summary: aiDetection.summary ?? "",
     findings: uniqueStrings(aiDetection.findings ?? [])
+  };
+}
+
+function getAuditActorId(payload) {
+  return (
+    payload.agent_id ??
+    payload.reviewer_id ??
+    payload.context_steward_id ??
+    payload.steward_id ??
+    payload.updated_by ??
+    payload.created_by ??
+    payload.assigned_by ??
+    payload.thread_id ??
+    null
+  );
+}
+
+function normalizeScoreEvent(payload) {
+  if (
+    payload.score_delta === undefined &&
+    payload.score_total === undefined &&
+    payload.score_reason === undefined
+  ) {
+    return null;
+  }
+
+  return {
+    agent_id: payload.agent_id ?? null,
+    delta: payload.score_delta ?? null,
+    total: payload.score_total ?? null,
+    reason: payload.score_reason ?? ""
   };
 }
 

@@ -237,6 +237,19 @@ assert.equal(acceptedDelivery.delivery.review.context_steward_id, "steward");
 assert.equal(acceptedDelivery.project.current_context_snapshot_id, "context-0003");
 assert.equal(acceptedDelivery.followup_tasks.length, 1);
 
+const auditEvents = jsonRun([
+  "list-audit-events",
+  "--project",
+  "cli-demo",
+  "--type",
+  "delivery.accepted",
+  "--json"
+]);
+assert.equal(auditEvents.events.length, 1);
+assert.equal(auditEvents.events[0].task_id, publishedTask.task.id);
+assert.equal(auditEvents.events[0].reviewer_id, "reviewer");
+assert.equal(auditEvents.events[0].context_steward_id, "steward");
+
 const listedTasks = jsonRun([
   "list-tasks",
   "--project",

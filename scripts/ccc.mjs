@@ -43,6 +43,7 @@ Commands:
                     List scheduled project check runs
   show-project-check
                     Show one scheduled project check run
+  list-audit-events List persistent audit events
   publish-task       Publish a project-scoped task as draft
   prepare-task       Context steward prepares a draft task
   list-tasks         List tasks in a project
@@ -89,6 +90,7 @@ const handlers = {
   "check-projects": handleCheckProjects,
   "list-project-checks": handleListProjectChecks,
   "show-project-check": handleShowProjectCheck,
+  "list-audit-events": handleListAuditEvents,
   "publish-task": handlePublishTask,
   "prepare-task": handlePrepareTask,
   "list-tasks": handleListTasks,
@@ -332,6 +334,18 @@ function handleListProjectChecks(center) {
 
 function handleShowProjectCheck(center, flags) {
   return { check: center.getProjectCheck(requiredAnyFlag(flags, "check", "check-id")) };
+}
+
+function handleListAuditEvents(center, flags) {
+  return {
+    events: center.listAuditEvents({
+      type: stringFlag(flags, "type"),
+      project_id: stringFlag(flags, "project"),
+      task_id: stringFlag(flags, "task"),
+      agent_id: stringFlag(flags, "agent"),
+      limit: positiveIntegerFlag(flags, "limit")
+    })
+  };
 }
 
 function handlePublishTask(center, flags) {
@@ -645,6 +659,20 @@ function printResult(command, result, flags) {
       break;
     case "show-project-check":
       console.log(JSON.stringify(result.check, null, 2));
+      break;
+    case "list-audit-events":
+      printRows(
+        result.events.map((event) => [
+          event.id,
+          event.type,
+          event.at,
+          event.project_id ?? "-",
+          event.task_id ?? "-",
+          event.delivery_id ?? "-",
+          event.actor_id ?? "-"
+        ]),
+        ["id", "type", "at", "project", "task", "delivery", "actor"]
+      );
       break;
     case "publish-task":
       console.log(`published task ${result.task.id} (${result.task.status})`);

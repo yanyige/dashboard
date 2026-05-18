@@ -231,6 +231,7 @@ npm run ccc -- show-task --project my-project --task task-0001
 npm run ccc -- show-project-dashboard --project my-project
 npm run ccc -- list-project-status --project my-project
 npm run ccc -- list-project-checks
+npm run ccc -- list-audit-events --project my-project --limit 20
 ```
 
 Run the CLI smoke test:
@@ -332,6 +333,10 @@ Maintains project context and prepares tasks before execution. In the preferred 
 ### Reviewer
 
 Reviews submitted delivery evidence and records the review decision, method, and conclusion. A Reviewer can be separate from the Context Steward: `accept-delivery` still requires `--steward` for context advancement, and can also receive `--reviewer` to record who made the delivery review decision.
+
+### Audit Log
+
+Every lifecycle event is still written to the legacy `events.json` compatibility file, and is also appended to `audit-log/events.jsonl`. The JSONL file keeps one stable event per line, which makes Git diffs readable as projects, tasks, deliveries, reviews, and future Agent score events accumulate. Use `list-audit-events` to inspect the log by project, task, agent, type, or recent limit.
 
 ### Requirement Proposal Review
 
