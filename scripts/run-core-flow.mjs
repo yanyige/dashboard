@@ -157,6 +157,12 @@ assert.equal(center.getAgent(builderAgent.id).status, "available");
 assert.equal(accepted.followup_tasks.length, 1);
 assert.equal(accepted.followup_tasks[0].status, "draft");
 
+const agentScores = center.listAgentScores();
+const builderScore = agentScores.find((score) => score.agent_id === builderAgent.id);
+assert.equal(builderScore.score_total, 10);
+assert.equal(builderScore.score_completed_tasks, 1);
+assert.match(builderScore.last_score_reason, /Accepted delivery/);
+
 const auditEvents = center.listAuditEvents({
   project_id: project.id
 });
@@ -168,6 +174,13 @@ assert.equal(acceptedAuditEvent.task_id, readyTask.id);
 assert.equal(acceptedAuditEvent.delivery_id, delivery.id);
 assert.equal(acceptedAuditEvent.context_steward_id, contextSteward.id);
 assert.ok(acceptedAuditEvent.id.startsWith("audit-"));
+const scoreAuditEvent = auditEvents.find(
+  (event) => event.type === "agent.score_recorded"
+);
+assert.ok(scoreAuditEvent);
+assert.equal(scoreAuditEvent.agent_id, builderAgent.id);
+assert.equal(scoreAuditEvent.score_event.delta, 10);
+assert.equal(scoreAuditEvent.score_event.total, 10);
 
 const finalTasks = center.listTasks(project.id);
 const dashboard = center.getProjectDashboard(project.id);

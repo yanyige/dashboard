@@ -28,6 +28,19 @@
     "max_parallel_tasks": {
       "type": "integer",
       "minimum": 1
+    },
+    "score_total": {
+      "type": "number"
+    },
+    "score_completed_tasks": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "last_score_at": {
+      "type": ["string", "null"]
+    },
+    "last_score_reason": {
+      "type": ["string", "null"]
     }
   }
 }

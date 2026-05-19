@@ -360,6 +360,17 @@ assert.equal(acceptedDelivery.delivery.review.context_steward_id, "steward");
 assert.equal(acceptedDelivery.project.current_context_snapshot_id, "context-0003");
 assert.equal(acceptedDelivery.followup_tasks.length, 1);
 
+const agentScores = jsonRun([
+  "list-agent-scores",
+  "--json"
+]);
+const builderScore = agentScores.scores.find((score) => score.agent_id === "builder");
+const stewardScore = agentScores.scores.find((score) => score.agent_id === "steward");
+assert.equal(builderScore.rank, 1);
+assert.equal(builderScore.score_total, 10);
+assert.equal(builderScore.score_completed_tasks, 1);
+assert.equal(stewardScore.score_total, 0);
+
 const auditEvents = jsonRun([
   "list-audit-events",
   "--project",

@@ -81,6 +81,9 @@ try {
   assert.equal(dashboard.projects[0].project.id, "web-demo");
   assert.equal(dashboard.projects[0].project.health, "at_risk");
   assert.equal(dashboard.latest_check.id, "check-0001");
+  assert.equal(dashboard.agent_scores.length, 1);
+  assert.equal(dashboard.agent_scores[0].agent_id, "codex-thread");
+  assert.equal(dashboard.agent_scores[0].score_total, 0);
 
   const project = await getJson(`${baseUrl}/api/projects/web-demo`);
   assert.equal(project.dashboard.task_summary.total, 2);
@@ -245,10 +248,12 @@ try {
   assert.match(html, /项目看板/);
   assert.match(html, /taskFilterControls/);
   assert.match(html, /projectChatSection/);
+  assert.match(html, /agentScoreSection/);
   assert.match(html, /requirementProposalForm/);
   const appJs = await getText(`${baseUrl}/app.js`);
   assert.match(appJs, /data-task-filter/);
   assert.match(appJs, /已退回/);
+  assert.match(appJs, /renderAgentScores/);
   assert.match(appJs, /thread-inbox/);
   assert.match(appJs, /createRequirementProposal/);
   assert.match(appJs, /ownerPromptActions\.hidden = false/);

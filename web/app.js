@@ -89,6 +89,8 @@ const elements = {
   metricActiveTasks: document.getElementById("metricActiveTasks"),
   metricUnissued: document.getElementById("metricUnissued"),
   metricBlocked: document.getElementById("metricBlocked"),
+  agentScoreCountLabel: document.getElementById("agentScoreCountLabel"),
+  agentScoreList: document.getElementById("agentScoreList"),
   ownerReportMeta: document.getElementById("ownerReportMeta"),
   ownerThreadName: document.getElementById("ownerThreadName"),
   ownerThreadStatus: document.getElementById("ownerThreadStatus"),
@@ -375,6 +377,7 @@ function render() {
   elements.generatedAt.textContent = `更新于 ${formatDate(data.generated_at)}`;
 
   renderProjects(data.projects);
+  renderAgentScores(data.agent_scores ?? []);
   renderProject(selected);
 }
 
@@ -457,6 +460,31 @@ function renderMetrics(tasks) {
   elements.metricActiveTasks.textContent = tasks.filter(isActiveTask).length;
   elements.metricUnissued.textContent = tasks.filter(isUnissuedTask).length;
   elements.metricBlocked.textContent = tasks.filter((task) => task.status === "blocked").length;
+}
+
+function renderAgentScores(scores) {
+  const normalizedScores = scores ?? [];
+  elements.agentScoreCountLabel.textContent = `${normalizedScores.length} 个 Agent`;
+
+  if (normalizedScores.length === 0) {
+    elements.agentScoreList.innerHTML = `<div class="empty-state">暂无 Agent 分数。</div>`;
+    return;
+  }
+
+  elements.agentScoreList.innerHTML = normalizedScores.map((score) => `
+    <article class="agent-score-row">
+      <div class="agent-score-rank">#${escapeHtml(score.rank)}</div>
+      <div class="agent-score-main">
+        <strong>${escapeHtml(score.name || score.agent_id)}</strong>
+        <span>${escapeHtml(score.agent_id)} · ${escapeHtml(score.role)} · ${escapeHtml(score.status)}</span>
+        <small>${escapeHtml(score.last_score_reason || "暂无加分记录")} · ${escapeHtml(formatDate(score.last_score_at))}</small>
+      </div>
+      <div class="agent-score-value">
+        <strong>${escapeHtml(score.score_total)}</strong>
+        <span>${escapeHtml(score.score_completed_tasks)} 完成</span>
+      </div>
+    </article>
+  `).join("");
 }
 
 function renderOwnerOverview(dashboard) {

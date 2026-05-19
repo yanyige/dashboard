@@ -224,6 +224,7 @@ Useful queries:
 
 ```bash
 npm run ccc -- list-agents
+npm run ccc -- list-agent-scores
 npm run ccc -- list-projects
 npm run ccc -- list-tasks --project my-project
 npm run ccc -- list-claimable-tasks --project my-project
@@ -339,7 +340,11 @@ Reviews submitted delivery evidence and records the review decision, method, and
 
 ### Audit Log
 
-Every lifecycle event is still written to the legacy `events.json` compatibility file, and is also appended to `audit-log/events.jsonl`. The JSONL file keeps one stable event per line, which makes Git diffs readable as projects, tasks, deliveries, reviews, and future Agent score events accumulate. Use `list-audit-events` to inspect the log by project, task, agent, type, or recent limit.
+Every lifecycle event is still written to the legacy `events.json` compatibility file, and is also appended to `audit-log/events.jsonl`. The JSONL file keeps one stable event per line, which makes Git diffs readable as projects, tasks, deliveries, reviews, and Agent score events accumulate. Use `list-audit-events` to inspect the log by project, task, agent, type, or recent limit.
+
+### Agent Scores
+
+Accepted deliveries automatically add 10 points to the task's assigned Agent and append a score entry to `agents/score-ledger.json`. Use `list-agent-scores` or the web dashboard Agent leaderboard to inspect rank, total score, completed task count, and the latest score reason.
 
 ### Requirement Proposal Review
 

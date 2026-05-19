@@ -11,6 +11,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { validateRecord } from "./validation.mjs";
 
 const DEFAULT_CONTROL_CENTER_PATH = "/Users/yyg/work/github/codex-control-center";
+const TASK_ACCEPTED_SCORE_DELTA = 10;
 
 export class ControlCenter {
   constructor({ root }) {
@@ -48,6 +49,10 @@ export class ControlCenter {
       current_task_id: null,
       active_task_ids: [],
       max_parallel_tasks: agent.max_parallel_tasks ?? 1,
+      score_total: agent.score_total ?? 0,
+      score_completed_tasks: agent.score_completed_tasks ?? 0,
+      last_score_at: agent.last_score_at ?? null,
+      last_score_reason: agent.last_score_reason ?? null,
       created_at: now(),
       updated_at: now()
     };
@@ -1097,6 +1102,17 @@ export class ControlCenter {
         doneTask.assigned_agent_id,
         `${input.project_id}/${doneTask.id}`
       );
+      this.recordAgentScore({
+        agent_id: doneTask.assigned_agent_id,
+        event_type: "task_accepted",
+        delta: TASK_ACCEPTED_SCORE_DELTA,
+        reason: `Accepted delivery for ${input.project_id}/${doneTask.id}`,
+        project_id: input.project_id,
+        task_id: doneTask.id,
+        delivery_id: delivery.id,
+        reviewer_id: reviewer.id,
+        context_steward_id: steward.id
+      });
     }
 
     const followupTasks = (input.followups ?? []).map((followup) =>
@@ -1428,6 +1444,128 @@ export class ControlCenter {
 
   listAgents() {
     return this.readJson(this.agentRegistryPath()).agents.map(normalizeAgent);
+  }
+
+  listAgentScores() {
+    const ledger = this.readJson(this.agentScoreLedgerPath(), {
+      entries: [],
+      updated_at: null
+    });
+    const entries = Array.isArray(ledger.entries) ? ledger.entries : [];
+
+    return this.listAgents()
+      .map((agent) => {
+        const agentEntries = entries.filter((entry) => entry.agent_id === agent.id);
+        const lastEntry = agentEntries.at(-1) ?? null;
+        const computedScore = agentEntries.reduce(
+          (total, entry) => total + Number(entry.delta ?? 0),
+          0
+        );
+        const completedTaskIds = uniqueStrings(
+          agentEntries
+            .filter((entry) => entry.event_type === "task_accepted")
+            .map((entry) => `${entry.project_id ?? ""}/${entry.task_id ?? ""}`)
+        );
+
+        return {
+          agent_id: agent.id,
+          name: agent.name,
+          role: agent.role,
+          status: agent.status,
+          skills: agent.skills,
+          score_total:
+            agentEntries.length > 0
+              ? computedScore
+              : numberOrDefault(agent.score_total, 0),
+          score_completed_tasks:
+            agentEntries.length > 0
+              ? completedTaskIds.length
+              : numberOrDefault(agent.score_completed_tasks, 0),
+          score_event_count: agentEntries.length,
+          last_score_at: lastEntry?.created_at ?? agent.last_score_at ?? null,
+          last_score_reason: lastEntry?.reason ?? agent.last_score_reason ?? null,
+          last_score_delta: lastEntry?.delta ?? null,
+          last_project_id: lastEntry?.project_id ?? null,
+          last_task_id: lastEntry?.task_id ?? null,
+          last_delivery_id: lastEntry?.delivery_id ?? null
+        };
+      })
+      .sort(compareAgentScores)
+      .map((score, index) => ({
+        rank: index + 1,
+        ...score
+      }));
+  }
+
+  recordAgentScore(input) {
+    requireFields(input, ["agent_id", "delta", "reason"]);
+    const delta = Number(input.delta);
+    if (!Number.isFinite(delta)) {
+      throw new Error("Score delta must be a finite number.");
+    }
+
+    const agent = this.getAgent(input.agent_id);
+    const ledger = this.readJson(this.agentScoreLedgerPath(), {
+      entries: [],
+      updated_at: null
+    });
+    const entries = Array.isArray(ledger.entries) ? ledger.entries : [];
+    const agentEntries = entries.filter((entry) => entry.agent_id === agent.id);
+    const previousTotal =
+      agentEntries.length > 0
+        ? agentEntries.reduce((total, entry) => total + Number(entry.delta ?? 0), 0)
+        : numberOrDefault(agent.score_total, 0);
+    const nextTotal = previousTotal + delta;
+    const createdAt = now();
+    const entry = {
+      id: `score-${String(entries.length + 1).padStart(6, "0")}`,
+      agent_id: agent.id,
+      event_type: input.event_type ?? "manual",
+      delta,
+      total: nextTotal,
+      reason: input.reason,
+      project_id: input.project_id ?? null,
+      task_id: input.task_id ?? null,
+      delivery_id: input.delivery_id ?? null,
+      reviewer_id: input.reviewer_id ?? null,
+      context_steward_id: input.context_steward_id ?? null,
+      created_at: createdAt
+    };
+
+    this.writeJson(this.agentScoreLedgerPath(), {
+      entries: [...entries, entry],
+      updated_at: createdAt
+    });
+
+    const scoreCompletedTasks =
+      input.event_type === "task_accepted"
+        ? uniqueStrings(
+            [...agentEntries, entry]
+              .filter((candidate) => candidate.event_type === "task_accepted")
+              .map((candidate) => `${candidate.project_id ?? ""}/${candidate.task_id ?? ""}`)
+          ).length
+        : numberOrDefault(agent.score_completed_tasks, 0);
+    const updatedAgent = this.updateAgent(agent.id, {
+      score_total: nextTotal,
+      score_completed_tasks: scoreCompletedTasks,
+      last_score_at: createdAt,
+      last_score_reason: input.reason
+    });
+
+    this.appendEvent("agent.score_recorded", {
+      project_id: input.project_id,
+      task_id: input.task_id,
+      delivery_id: input.delivery_id,
+      agent_id: agent.id,
+      reviewer_id: input.reviewer_id,
+      context_steward_id: input.context_steward_id,
+      score_entry_id: entry.id,
+      score_delta: delta,
+      score_total: nextTotal,
+      score_reason: input.reason
+    });
+
+    return { entry, agent: updatedAgent };
   }
 
   getProject(projectId) {
@@ -2032,6 +2170,12 @@ export class ControlCenter {
         updated_at: now()
       });
     }
+    if (!existsSync(this.agentScoreLedgerPath())) {
+      this.writeJson(this.agentScoreLedgerPath(), {
+        entries: [],
+        updated_at: null
+      });
+    }
 
     if (!existsSync(this.eventsPath())) {
       this.writeJson(this.eventsPath(), []);
@@ -2112,6 +2256,10 @@ export class ControlCenter {
 
   agentRegistryPath() {
     return join(this.root, "agents", "registry.json");
+  }
+
+  agentScoreLedgerPath() {
+    return join(this.root, "agents", "score-ledger.json");
   }
 
   eventsPath() {
@@ -2324,8 +2472,24 @@ function normalizeAgent(agent) {
     max_parallel_tasks:
       Number.isInteger(agent.max_parallel_tasks) && agent.max_parallel_tasks > 0
         ? agent.max_parallel_tasks
-        : 1
+        : 1,
+    score_total: numberOrDefault(agent.score_total, 0),
+    score_completed_tasks: numberOrDefault(agent.score_completed_tasks, 0),
+    last_score_at: agent.last_score_at ?? null,
+    last_score_reason: agent.last_score_reason ?? null
   };
+}
+
+function compareAgentScores(left, right) {
+  return (
+    right.score_total - left.score_total ||
+    right.score_completed_tasks - left.score_completed_tasks ||
+    left.agent_id.localeCompare(right.agent_id)
+  );
+}
+
+function numberOrDefault(value, fallback) {
+  return Number.isFinite(value) ? value : fallback;
 }
 
 function getAgentCapacity(agent) {

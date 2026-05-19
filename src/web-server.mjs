@@ -377,6 +377,7 @@ function buildDashboard(center) {
     latest_check: latestCheck,
     checks: checks.slice(-20).reverse(),
     agents: center.listAgents(),
+    agent_scores: center.listAgentScores(),
     projects: dashboards
   };
 }

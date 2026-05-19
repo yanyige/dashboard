@@ -108,6 +108,10 @@ function validateAgent(value, errors) {
   optionalStringOrNull(value, "current_task_id", errors);
   optionalArrayOfStrings(value, "active_task_ids", errors);
   optionalPositiveInteger(value, "max_parallel_tasks", errors);
+  optionalNumber(value, "score_total", errors);
+  optionalNonNegativeInteger(value, "score_completed_tasks", errors);
+  optionalStringOrNull(value, "last_score_at", errors);
+  optionalStringOrNull(value, "last_score_reason", errors);
 }
 
 function validateAgentRegistry(value, errors) {
@@ -405,6 +409,24 @@ function optionalDeliveryReview(value, field, errors) {
 function numberValue(value, field, errors) {
   if (typeof value?.[field] !== "number" || Number.isNaN(value[field])) {
     errors.push(`${field} must be a number`);
+  }
+}
+
+function optionalNumber(value, field, errors) {
+  if (value?.[field] === undefined) {
+    return;
+  }
+
+  numberValue(value, field, errors);
+}
+
+function optionalNonNegativeInteger(value, field, errors) {
+  if (value?.[field] === undefined) {
+    return;
+  }
+
+  if (!Number.isInteger(value[field]) || value[field] < 0) {
+    errors.push(`${field} must be a non-negative integer when present`);
   }
 }
 

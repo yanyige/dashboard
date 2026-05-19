@@ -13,6 +13,7 @@ Usage:
 Commands:
   register-agent     Register an Agent in the employee center
   list-agents        List registered Agents
+  list-agent-scores  List Agent score leaderboard
   create-project     Create a project with its first context snapshot
   import-project     Import a project directly from a GitHub repository URL
   list-projects      List projects
@@ -80,6 +81,7 @@ Examples:
 const handlers = {
   "register-agent": handleRegisterAgent,
   "list-agents": handleListAgents,
+  "list-agent-scores": handleListAgentScores,
   "create-project": handleCreateProject,
   "import-project": handleImportProject,
   "list-projects": handleListProjects,
@@ -169,6 +171,10 @@ function handleRegisterAgent(center, flags) {
 
 function handleListAgents(center) {
   return { agents: center.listAgents() };
+}
+
+function handleListAgentScores(center) {
+  return { scores: center.listAgentScores() };
 }
 
 function handleCreateProject(center, flags) {
@@ -605,6 +611,21 @@ function printResult(command, result, flags) {
           agent.skills.join(",")
         ]),
         ["id", "role", "status", "capacity", "skills"]
+      );
+      break;
+    case "list-agent-scores":
+      printRows(
+        result.scores.map((score) => [
+          score.rank,
+          score.agent_id,
+          score.name,
+          score.role,
+          score.status,
+          score.score_total,
+          score.score_completed_tasks,
+          score.last_score_reason ?? "-"
+        ]),
+        ["rank", "agent", "name", "role", "status", "score", "done", "last_reason"]
       );
       break;
     case "create-project":
